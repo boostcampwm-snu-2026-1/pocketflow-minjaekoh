@@ -41,8 +41,11 @@ Pocketflow는 개인의 지출 기록, 정기 지출 관리, 현금흐름 예측
 - 작업이 끝나면 Codex는 커밋하지 않습니다.
 - 커밋은 사용자가 직접 수행합니다.
 - Codex는 작업 종료 시 한국어 커밋 메시지를 추천합니다.
+- Codex는 작업 종료 시 GitHub PR description 초안도 함께 제공합니다.
 - Codex는 이슈 작업이 끝날 때 `issues_backlog.md`의 해당 이슈 체크리스트를 완료 상태로 변경합니다.
-- 모든 feature 작업이 끝난 뒤 사용자가 `dev` 브랜치로 PR을 생성합니다.
+- 사용자는 feature 작업이 끝날 때마다 해당 브랜치를 `dev`로 PR 생성 후 병합합니다.
+- 다음 이슈는 이전 feature 브랜치가 `dev`에 병합된 뒤 시작합니다.
+- Codex는 새 이슈를 시작하기 전에 `dev`가 최신인지 확인하고, 이전 이슈 변경이 `dev`에 없으면 작업을 시작하지 않습니다.
 
 추천 명령 흐름은 다음과 같습니다.
 
@@ -59,6 +62,16 @@ git status
 git add .
 git commit -m "feat: 공통 레이아웃과 라우팅 뼈대 구현"
 git push -u origin feature/issue-2-layout-routing
+```
+
+이후 GitHub에서 `feature/issue-2-layout-routing -> dev` 방향으로 PR을 생성하고 병합합니다.
+
+다음 이슈를 시작할 때는 반드시 병합된 `dev`에서 새 브랜치를 생성합니다.
+
+```powershell
+git checkout dev
+git pull origin dev
+git checkout -b feature/issue-3-kpi-cards
 ```
 
 ## 5. 컨셉맵
