@@ -1,10 +1,10 @@
 # Pocketflow Project Issues Backlog
 
 ## [Epic 1] 초기 세팅 및 레이아웃
-- [ ] **Issue #1: chore: 프로젝트 초기 환경 및 패키지 세팅**
-  - [ ] React 또는 Next.js, Tailwind CSS, shadcn/ui 세팅
-  - [ ] 다크 테마 기본 스타일 및 공통 디자인 토큰 적용
-  - [ ] 프로젝트 폴더 구조와 기본 파일 정리
+- [x] **Issue #1: chore: 프로젝트 초기 환경 및 패키지 세팅**
+  - [x] React 또는 Next.js, Tailwind CSS, shadcn/ui 세팅
+  - [x] 다크 테마 기본 스타일 및 공통 디자인 토큰 적용
+  - [x] 프로젝트 폴더 구조와 기본 파일 정리
 - [ ] **Issue #2: feat: 공통 사이드바 및 페이지 라우팅 뼈대 구축**
   - [ ] 사이드바 마크업 및 메뉴 구조 구현
   - [ ] 대시보드, 지출 관리, 정기 지출 설정 라우팅 연결
