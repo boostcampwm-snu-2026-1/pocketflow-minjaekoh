@@ -7,7 +7,11 @@ type RecentExpense = {
   amount: number;
 };
 
-const recentExpenses: RecentExpense[] = [
+type RecentExpenseListProps = {
+  expenses?: RecentExpense[];
+};
+
+const defaultExpenses: RecentExpense[] = [
   {
     date: "06/06",
     name: "점심 식사",
@@ -57,8 +61,10 @@ function getCategoryTone(category: string) {
   }
 }
 
-export function RecentExpenseList() {
-  const total = recentExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+export function RecentExpenseList({
+  expenses = defaultExpenses
+}: RecentExpenseListProps) {
+  const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   return (
     <section aria-labelledby="recent-expense-heading" className="space-y-4">
@@ -87,7 +93,7 @@ export function RecentExpenseList() {
         </div>
 
         <div className="divide-y divide-border">
-          {recentExpenses.map((expense, index) => (
+          {expenses.map((expense, index) => (
             <article
               key={`${expense.date}-${expense.name}-${index}`}
               className="grid grid-cols-[72px_minmax(0,1.5fr)_auto] gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"

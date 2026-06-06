@@ -7,7 +7,7 @@ import {
   ShieldCheck,
   Wallet
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type AnalysisResult = {
   riskLevel: "safe" | "watch" | "danger";
@@ -18,6 +18,11 @@ type AnalysisResult = {
 };
 
 const availableCash = 557000;
+
+type AiPurchaseSimulatorPanelProps = {
+  currentItemName?: string;
+  currentPrice?: number;
+};
 
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
@@ -41,12 +46,23 @@ function parseAnalysisResponse(raw: string): AnalysisResult {
   return parsed;
 }
 
-export function AiPurchaseSimulatorPanel() {
-  const [itemName, setItemName] = useState("무선 이어폰");
-  const [price, setPrice] = useState("129000");
+export function AiPurchaseSimulatorPanel({
+  currentItemName = "무선 이어폰",
+  currentPrice = 129000
+}: AiPurchaseSimulatorPanelProps) {
+  const [itemName, setItemName] = useState(currentItemName);
+  const [price, setPrice] = useState(String(currentPrice));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+
+  useEffect(() => {
+    setItemName(currentItemName);
+  }, [currentItemName]);
+
+  useEffect(() => {
+    setPrice(String(currentPrice));
+  }, [currentPrice]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
