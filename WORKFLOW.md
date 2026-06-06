@@ -38,6 +38,8 @@ Pocketflow는 개인의 지출 기록, 정기 지출 관리, 현금흐름 예측
 - feature 브랜치는 항상 `dev`에서 분기합니다.
 - 브랜치 이름은 `feature/issue-번호-작업요약` 형식을 사용합니다.
 - 예시: `feature/issue-2-layout-routing`
+- 직전 이슈가 아직 `dev`에 병합되지 않은 상태라면, 로컬 작업 브랜치는 직전 feature 브랜치 위에서 이어서 만들 수 있습니다.
+- 다만 PR을 올리기 전에는 가능한 한 `dev` 최신 기준으로 정리하고, PR 대상은 항상 `dev`로 맞춥니다.
 - 작업이 끝나면 Codex는 커밋하지 않습니다.
 - 커밋은 사용자가 직접 수행합니다.
 - Codex는 작업 종료 시 한국어 커밋 메시지를 추천합니다.
@@ -72,6 +74,32 @@ git push -u origin feature/issue-2-layout-routing
 git checkout dev
 git pull origin dev
 git checkout -b feature/issue-3-kpi-cards
+```
+
+## 4-1. 작업 종료 산출물
+각 이슈 작업이 끝나면 다음 내용을 함께 정리합니다.
+
+- `git add`와 `git commit -m` 명령어
+- `git push -u origin <feature-branch>` 명령어
+- PR 제목
+- PR 본문
+- `issues_backlog.md`에서의 체크 상태 반영 여부
+- 로컬 검증 결과, 예: `npm run typecheck`
+
+PR 본문은 아래 순서를 기본으로 사용합니다.
+
+```md
+## 작업 내용
+- ...
+
+## 변경 파일
+- ...
+
+## 확인 사항
+- ...
+
+## 관련 이슈
+- closes #N
 ```
 
 ## 5. 컨셉맵
