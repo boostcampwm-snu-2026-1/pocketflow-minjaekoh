@@ -12,6 +12,15 @@ type ExpenseFormState = {
 
 type ExpenseFormErrors = Partial<Record<keyof ExpenseFormState, string>>;
 
+type ExpenseEntryFormProps = {
+  onSubmitSimulationHint?: (expense: {
+    date: string;
+    name: string;
+    category: string;
+    amount: number;
+  }) => void;
+};
+
 const initialState: ExpenseFormState = {
   date: "",
   name: "",
@@ -45,7 +54,9 @@ function validate(form: ExpenseFormState) {
   return errors;
 }
 
-export function ExpenseEntryForm() {
+export function ExpenseEntryForm({
+  onSubmitSimulationHint
+}: ExpenseEntryFormProps) {
   const [form, setForm] = useState<ExpenseFormState>(initialState);
   const [errors, setErrors] = useState<ExpenseFormErrors>({});
   const [submittedCount, setSubmittedCount] = useState(0);
@@ -63,6 +74,12 @@ export function ExpenseEntryForm() {
     }
 
     setSubmittedCount((count) => count + 1);
+    onSubmitSimulationHint?.({
+      date: form.date,
+      name: form.name.trim(),
+      category: form.category,
+      amount: Number(form.amount)
+    });
     setForm((current) => ({
       ...initialState,
       category: current.category
