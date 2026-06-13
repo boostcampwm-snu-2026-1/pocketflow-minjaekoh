@@ -10,11 +10,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-
-type UpcomingExpense = {
-  dueDay: number;
-  amount: number;
-};
+import { buildCashflowSeries, useCashflowStore } from "@/store/cashflow-store";
 
 type CashflowPoint = {
   day: number;
@@ -22,54 +18,9 @@ type CashflowPoint = {
   outgoing: number;
 };
 
-const startingCash = 557000;
-
-const upcomingExpenses: UpcomingExpense[] = [
-  { dueDay: 2, amount: 55000 },
-  { dueDay: 4, amount: 78000 },
-  { dueDay: 6, amount: 64000 },
-  { dueDay: 9, amount: 38000 },
-  { dueDay: 15, amount: 124000 },
-  { dueDay: 23, amount: 86000 }
-];
-
-const totalUpcomingOutgoings = upcomingExpenses.reduce(
-  (total, expense) => total + expense.amount,
-  0
-);
-
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
-
-function buildCashflowSeries() {
-  const dailyOutgoing = new Map<number, number>();
-
-  for (const expense of upcomingExpenses) {
-    dailyOutgoing.set(
-      expense.dueDay,
-      (dailyOutgoing.get(expense.dueDay) ?? 0) + expense.amount
-    );
-  }
-
-  let runningCash = startingCash;
-  const series: CashflowPoint[] = [];
-
-  for (let day = 1; day <= 30; day += 1) {
-    const outgoing = dailyOutgoing.get(day) ?? 0;
-    runningCash -= outgoing;
-
-    series.push({
-      day,
-      cash: runningCash,
-      outgoing
-    });
-  }
-
-  return series;
-}
-
-const series = buildCashflowSeries();
 
 function CustomTooltip({
   active,
@@ -104,6 +55,10 @@ function CustomTooltip({
 }
 
 export function DailyCashflowChart() {
+  const upcomingExpenses = useCashflowStore((state) => state.upcomingExpenses);
+  const summary = useCashflowStore((state) => state.summary);
+  const series = buildCashflowSeries(upcomingExpenses, summary.availableCash);
+
   return (
     <section aria-labelledby="daily-cashflow-heading" className="space-y-4">
       <div>
@@ -112,29 +67,27 @@ export function DailyCashflowChart() {
           일별 가용 현금 흐름
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          오늘 기준 가용 현금에서 예정 지출이 빠지는 흐름을 1일부터 30일까지 보여줍니다.
+          전역 상태에 들어있는 예정 지출을 기준으로 1일차부터 30일차까지 현금 흐름을
+          다시 그립니다.
         </p>
       </div>
 
       <div className="rounded-xl border bg-card p-4 md:p-5">
         <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="rounded-full border border-border bg-background px-3 py-1">
-            시작 가용 현금 {formatWon(startingCash)}
+            시작 가용 현금 {formatWon(summary.availableCash)}
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
-            총 예정 지출 {formatWon(totalUpcomingOutgoings)}
+            예정 지출 {formatWon(summary.upcomingSpend)}
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
-            월말 예상 잔액 {formatWon(series[series.length - 1]?.cash ?? 0)}
+            월말 예상 잔액 {formatWon(summary.forecastMonthEndBalance)}
           </span>
         </div>
 
         <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={series}
-              margin={{ top: 8, right: 20, left: 0, bottom: 0 }}
-            >
+            <LineChart data={series} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="4 4" vertical={false} />
               <XAxis
                 dataKey="day"
@@ -152,7 +105,7 @@ export function DailyCashflowChart() {
               />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine
-                y={startingCash}
+                y={summary.availableCash}
                 stroke="var(--border)"
                 strokeDasharray="3 3"
                 label={{

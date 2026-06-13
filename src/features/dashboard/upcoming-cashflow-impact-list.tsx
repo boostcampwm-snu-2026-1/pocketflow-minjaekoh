@@ -1,47 +1,15 @@
+"use client";
+
 import { AlertTriangle, ArrowDownRight, CalendarDays } from "lucide-react";
-
-type UpcomingExpense = {
-  title: string;
-  dueInDays: number;
-  amount: number;
-  category: string;
-};
-
-const availableCash = 557000;
-
-const upcomingExpenses: UpcomingExpense[] = [
-  {
-    title: "통신비",
-    dueInDays: 2,
-    amount: 55000,
-    category: "고정비"
-  },
-  {
-    title: "관리비",
-    dueInDays: 4,
-    amount: 78000,
-    category: "고정비"
-  },
-  {
-    title: "닭가슴살 정기구매",
-    dueInDays: 6,
-    amount: 64000,
-    category: "준고정비"
-  },
-  {
-    title: "생활용품",
-    dueInDays: 9,
-    amount: 38000,
-    category: "변동비"
-  }
-];
+import { useCashflowStore } from "@/store/cashflow-store";
 
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
 export function UpcomingCashflowImpactList() {
-  let remainingCash = availableCash;
+  const availableCash = useCashflowStore((state) => state.summary.availableCash);
+  const upcomingRows = useCashflowStore((state) => state.upcomingImpactRows);
 
   return (
     <section aria-labelledby="upcoming-impact-heading" className="space-y-4">
@@ -52,20 +20,19 @@ export function UpcomingCashflowImpactList() {
             다가오는 지출이 가용 현금에 미치는 영향
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            각 항목이 오늘 기준 가용 현금을 얼마나 줄이는지 순서대로 보여줍니다.
+            store에 들어있는 예정 지출 순서대로 남은 현금을 다시 계산해 보여줍니다.
           </p>
         </div>
 
         <div className="hidden items-center gap-2 rounded-full border border-border/70 bg-secondary px-3 py-1 text-xs text-muted-foreground md:flex">
           <CalendarDays className="h-3.5 w-3.5" />
-          <span>기준 잔액 {formatWon(availableCash)}</span>
+          <span>기준 현금 {formatWon(availableCash)}</span>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
         <div className="divide-y divide-border">
-          {upcomingExpenses.map((expense) => {
-            remainingCash -= expense.amount;
+          {upcomingRows.map((expense) => {
             const isUrgent = expense.dueInDays <= 3;
 
             return (
@@ -79,9 +46,7 @@ export function UpcomingCashflowImpactList() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-foreground">
-                        {expense.title}
-                      </span>
+                      <span className="font-medium text-foreground">{expense.title}</span>
                       <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
                         {expense.category}
                       </span>
@@ -94,7 +59,7 @@ export function UpcomingCashflowImpactList() {
                       )}
                       <span>
                         {isUrgent
-                          ? `D-${expense.dueInDays} 이내 출금 예정`
+                          ? `D-${expense.dueInDays} 내 즉시 반영`
                           : `D-${expense.dueInDays} 예정`}
                       </span>
                     </p>
@@ -115,13 +80,13 @@ export function UpcomingCashflowImpactList() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <Stat label="예정일" value={`D-${expense.dueInDays}`} />
                   <Stat
-                    label="차감 금액"
+                    label="반영 금액"
                     value={`- ${formatWon(expense.amount)}`}
                     tone={isUrgent ? "danger" : "default"}
                   />
                   <Stat
-                    label="차감 후 잔액"
-                    value={formatWon(remainingCash)}
+                    label="반영 후 잔액"
+                    value={formatWon(expense.remainingCash)}
                   />
                 </div>
               </article>
