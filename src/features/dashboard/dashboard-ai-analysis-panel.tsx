@@ -1,35 +1,46 @@
 "use client";
 
-import { ShieldAlert, Sparkles, TrendingDown, Wallet } from "lucide-react";
-import { useCashflowStore } from "@/store/cashflow-store";
-
-type InsightRow = {
-  label: string;
-  value: string;
-};
+import { ShieldAlert, Sparkles, TrendingDown } from "lucide-react";
+import {
+  buildForecastCashflowSeries,
+  useCashflowStore,
+  type ForecastCashflowPoint
+} from "@/store/cashflow-store";
 
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
-export function DashboardAiAnalysisPanel() {
-  const summary = useCashflowStore((state) => state.summary);
-  const upcomingCount = useCashflowStore((state) => state.upcomingExpenses.length);
+function formatMonthDay(value: string) {
+  return value.slice(5).replace("-", "/");
+}
 
-  const insights: InsightRow[] = [
-    {
-      label: "가까운 지출",
-      value: `${upcomingCount}건`
-    },
-    {
-      label: "예상 월말 잔액",
-      value: formatWon(summary.forecastMonthEndBalance)
-    },
-    {
-      label: "오늘 기준 가용 현금",
-      value: formatWon(summary.availableCash)
-    }
-  ];
+function getDeficitPoint(points: ForecastCashflowPoint[]) {
+  return points.find((point) => point.cash < 0);
+}
+
+export function DashboardAiAnalysisPanel() {
+  const currentBalance = useCashflowStore((state) => state.summary.currentBalance);
+  const recurringIncomes = useCashflowStore((state) => state.recurringIncomes);
+  const fixedExpenses = useCashflowStore((state) => state.fixedExpenses);
+  const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
+
+  const forecast = buildForecastCashflowSeries({
+    startingBalance: currentBalance,
+    recurringIncomes,
+    fixedExpenses,
+    semiFixedExpenses,
+    horizonDays: 30
+  });
+
+  const finalBalance = forecast.at(-1)?.cash ?? currentBalance;
+  const deficitPoint = getDeficitPoint(forecast);
+  const isCritical = finalBalance <= 0 || Boolean(deficitPoint);
+
+  const statusLabel = isCritical ? "위기" : "여유";
+  const statusTone = isCritical
+    ? "border-red-500/30 bg-red-500/10 text-red-300"
+    : "border-primary/30 bg-primary/10 text-primary";
 
   return (
     <section aria-labelledby="ai-analysis-heading" className="space-y-4">
@@ -39,8 +50,7 @@ export function DashboardAiAnalysisPanel() {
           AI 소비분석 요약
         </h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          전역 상태의 잔액과 예정 지출을 기준으로, 오늘 소비를 어디까지 버틸 수 있는지
-          바로 보여줍니다.
+          그래프와 같은 30일 예측 시리즈 기준으로, 지금 흐름이 버티는지 바로 보여줍니다.
         </p>
       </div>
 
@@ -51,26 +61,24 @@ export function DashboardAiAnalysisPanel() {
               <Sparkles className="h-4 w-4 text-primary" />
               <span>현재 상태</span>
             </div>
-            <p className="mt-2 text-2xl font-semibold tracking-tight">
-              소비 여유 있음
-            </p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight">{statusLabel}</p>
           </div>
 
-          <div className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            안정
+          <div className={`rounded-full border px-3 py-1 text-xs font-medium ${statusTone}`}>
+            {isCritical ? "즉시 확인" : "정상"}
           </div>
         </div>
 
         <div className="mt-5 space-y-3">
           <StatusBar
-            label="예정 지출 반영 사용률"
-            value={`${summary.budgetUsage}%`}
-            accentClassName="bg-primary"
+            label="월말 현금 흐름"
+            value={isCritical ? "버티기 어려움" : "버틸 수 있음"}
+            accentClassName={isCritical ? "bg-red-500" : "bg-primary"}
           />
           <StatusBar
-            label="예상 월말 잔액 여유"
-            value={summary.forecastMonthEndBalance > 0 ? "있음" : "주의"}
-            accentClassName="bg-foreground/70"
+            label="최초 적자 시점"
+            value={deficitPoint ? `${formatMonthDay(deficitPoint.date)}부터` : "없음"}
+            accentClassName={isCritical ? "bg-destructive" : "bg-foreground/70"}
           />
         </div>
 
@@ -79,30 +87,23 @@ export function DashboardAiAnalysisPanel() {
             <ShieldAlert className="h-4 w-4 text-destructive" />
             <span>AI 메모</span>
           </div>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            전역 상태에서 계산된 예정 지출이 오늘 기준 가용 현금보다 적습니다. 지금은
-            큰 구매만 한 번 더 걸러보면 됩니다.
-          </p>
-        </div>
-
-        <div className="mt-5 space-y-3">
-          {insights.map((row) => (
-            <div
-              key={row.label}
-              className="flex items-center justify-between rounded-lg border border-border/70 bg-background px-4 py-3"
-            >
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Wallet className="h-4 w-4" />
-                <span>{row.label}</span>
-              </div>
-              <span className="text-sm font-medium text-foreground">{row.value}</span>
-            </div>
-          ))}
+          <div className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">
+            <p>
+              {isCritical
+                ? "지금 흐름을 그대로 두면 30일 안에 적자 구간이 생깁니다. 지출을 바로 줄이거나 보류해야 합니다."
+                : "현재 흐름은 아직 버틸 수 있습니다."}
+            </p>
+            <p>
+              {deficitPoint
+                ? `${formatMonthDay(deficitPoint.date)}부터 적자가 시작됩니다.`
+                : "30일 안에는 적자 구간이 보이지 않습니다."}
+            </p>
+          </div>
         </div>
 
         <div className="mt-5 flex items-center gap-2 rounded-lg border border-border/70 bg-secondary px-4 py-3 text-sm text-muted-foreground">
           <TrendingDown className="h-4 w-4 text-primary" />
-          <span>지출이 늘면 다음 계산값은 store 기준으로 즉시 다시 맞춰집니다.</span>
+          <span>그래프와 같은 예측 시리즈를 기준으로 월말 잔액을 같이 봅니다.</span>
         </div>
       </div>
     </section>

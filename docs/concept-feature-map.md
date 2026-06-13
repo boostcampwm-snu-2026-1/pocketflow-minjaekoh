@@ -88,6 +88,7 @@ Pocketflow
 +-- [PLANNED] Cashflow Setup (/cashflow-setup)
     |
     +-- Fixed Expense List
+    +-- Recurring Income List
     +-- Semi-Fixed Expense List
     +-- Detail Settings Panel
 ```
@@ -321,7 +322,7 @@ Implemented
 
 Not Yet Implemented
 |
-+-- Cashflow setup real page
++-- Budget system real page
 +-- Zustand global store
 +-- Entity model implementation
 +-- Persistent database layer
@@ -334,9 +335,9 @@ Not Yet Implemented
 ```text
 AI Purchase Simulator
 |
-+-- Frame the experience as a group-chat judgment room
++-- Frame the experience as a single judge in a spending verdict room
 +-- Use blunt but practical spending warnings
-+-- Return a verdict, member votes, and short chat-style replies
++-- Return a verdict, member votes, and one short judge note
 +-- Keep the tone playful without shaming the user personally
 +-- Prefer "hold / reject / buy" style outcomes over formal finance language
 ```

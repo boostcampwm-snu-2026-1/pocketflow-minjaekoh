@@ -3,11 +3,14 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
+type TransactionType = "expense" | "income";
+
 type ExpenseFormState = {
   date: string;
   name: string;
   amount: string;
   category: string;
+  type: TransactionType;
 };
 
 type ExpenseFormErrors = Partial<Record<keyof ExpenseFormState, string>>;
@@ -18,6 +21,7 @@ type ExpenseEntryFormProps = {
     name: string;
     category: string;
     amount: number;
+    type: TransactionType;
   }) => void;
 };
 
@@ -25,10 +29,14 @@ const initialState: ExpenseFormState = {
   date: "",
   name: "",
   amount: "",
-  category: "식비"
+  category: "식비",
+  type: "expense"
 };
 
-const categoryOptions = ["식비", "생활용품", "교통비", "주거비", "기타"] as const;
+const categoryOptionsByType: Record<TransactionType, string[]> = {
+  expense: ["식비", "교통비", "고정비", "준고정비", "변동비"],
+  income: ["급여", "용돈", "상여", "기타수입"]
+};
 
 function validate(form: ExpenseFormState) {
   const errors: ExpenseFormErrors = {};
@@ -54,14 +62,13 @@ function validate(form: ExpenseFormState) {
   return errors;
 }
 
-export function ExpenseEntryForm({
-  onSubmitSimulationHint
-}: ExpenseEntryFormProps) {
+export function ExpenseEntryForm({ onSubmitSimulationHint }: ExpenseEntryFormProps) {
   const [form, setForm] = useState<ExpenseFormState>(initialState);
   const [errors, setErrors] = useState<ExpenseFormErrors>({});
   const [submittedCount, setSubmittedCount] = useState(0);
 
   const isAmountValid = /^\d+$/.test(form.amount.trim());
+  const categoryOptions = categoryOptionsByType[form.type];
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,16 +80,20 @@ export function ExpenseEntryForm({
       return;
     }
 
-    setSubmittedCount((count) => count + 1);
-    onSubmitSimulationHint?.({
+    const nextExpense = {
       date: form.date,
       name: form.name.trim(),
       category: form.category,
-      amount: Number(form.amount)
-    });
+      amount: Number(form.amount),
+      type: form.type
+    };
+
+    setSubmittedCount((count) => count + 1);
+    onSubmitSimulationHint?.(nextExpense);
     setForm((current) => ({
       ...initialState,
-      category: current.category
+      type: current.type,
+      category: categoryOptionsByType[current.type][0]
     }));
     setErrors({});
   }
@@ -90,20 +101,16 @@ export function ExpenseEntryForm({
   return (
     <section aria-labelledby="expense-entry-heading" className="space-y-4">
       <div>
-        <p className="text-sm text-muted-foreground">Expense entry</p>
+        <p className="text-sm text-muted-foreground">Transaction entry</p>
         <h2 id="expense-entry-heading" className="text-xl font-semibold">
-          신규 지출 추가
+          수입 / 지출 기록
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          날짜, 항목명, 금액, 카테고리를 입력하면 다음 단계에서 리스트와 상태에 연결할 수 있습니다.
+          날짜, 항목명, 금액, 카테고리, 유형을 입력해 실제 발생한 수입과 지출을 기록합니다.
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-xl border bg-card p-5 md:p-6"
-        noValidate
-      >
+      <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-5 md:p-6" noValidate>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="날짜" error={errors.date}>
             <input
@@ -114,6 +121,27 @@ export function ExpenseEntryForm({
               }
               className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none ring-0 transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
+          </Field>
+
+          <Field label="유형" error={errors.type}>
+            <select
+              value={form.type}
+              onChange={(event) =>
+                setForm((current) => {
+                  const nextType = event.target.value as TransactionType;
+
+                  return {
+                    ...current,
+                    type: nextType,
+                    category: categoryOptionsByType[nextType][0]
+                  };
+                })
+              }
+              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none ring-0 transition-colors focus:border-primary"
+            >
+              <option value="expense">지출</option>
+              <option value="income">수입</option>
+            </select>
           </Field>
 
           <Field label="카테고리" error={errors.category}>
@@ -139,7 +167,7 @@ export function ExpenseEntryForm({
               onChange={(event) =>
                 setForm((current) => ({ ...current, name: event.target.value }))
               }
-              placeholder="예: 점심 식사"
+              placeholder="예: 치킨 배달"
               className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none ring-0 transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
           </Field>
@@ -163,20 +191,20 @@ export function ExpenseEntryForm({
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            숫자만 입력되며, 제출 전에 필수값을 검증합니다.
+            숫자만 입력하면 금액을 검증합니다. 이 화면은 실제 결제와 입금만 저장합니다.
           </p>
           <button
             type="submit"
             className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
-            추가하기
+            기록 추가
           </button>
         </div>
 
         <div className="mt-4 flex items-center justify-between rounded-lg border border-border/70 bg-background px-4 py-3 text-sm">
-          <span className="text-muted-foreground">최근 제출 횟수</span>
-          <span className="font-medium text-foreground">{submittedCount}회</span>
+          <span className="text-muted-foreground">최근 기록 수</span>
+          <span className="font-medium text-foreground">{submittedCount}건</span>
         </div>
 
         {isAmountValid && form.amount ? (
