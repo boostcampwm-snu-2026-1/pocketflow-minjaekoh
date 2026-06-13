@@ -153,22 +153,25 @@ export function DailyCashflowChart() {
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine
                 y={startingCash}
-                stroke="hsl(var(--border))"
+                stroke="var(--border)"
                 strokeDasharray="3 3"
                 label={{
                   value: "시작 잔액",
                   position: "insideTopRight",
-                  fill: "hsl(var(--muted-foreground))",
+                  fill: "var(--muted-foreground)",
                   fontSize: 12
                 }}
               />
               <Line
                 type="monotone"
                 dataKey="cash"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2.5}
-                dot={{ r: 2.5, strokeWidth: 2 }}
+                stroke="var(--primary)"
+                strokeWidth={3}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                dot={{ r: 3, fill: "var(--primary)", stroke: "var(--background)", strokeWidth: 2 }}
                 activeDot={{ r: 5 }}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>

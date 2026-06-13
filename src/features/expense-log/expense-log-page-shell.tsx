@@ -15,19 +15,19 @@ type ExpenseItem = {
 const initialExpenses: ExpenseItem[] = [
   {
     date: "2026-06-06",
-    name: "점심 식사",
-    category: "식비",
+    name: "치킨 배달",
+    category: "음식",
     amount: 12000
   },
   {
     date: "2026-06-06",
     name: "편의점 간식",
-    category: "기타",
+    category: "식비",
     amount: 4800
   },
   {
     date: "2026-06-05",
-    name: "대중교통",
+    name: "교통비",
     category: "교통비",
     amount: 3200
   }
