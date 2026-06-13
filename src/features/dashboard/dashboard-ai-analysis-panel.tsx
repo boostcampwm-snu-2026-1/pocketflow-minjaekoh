@@ -1,26 +1,36 @@
+"use client";
+
 import { ShieldAlert, Sparkles, TrendingDown, Wallet } from "lucide-react";
+import { useCashflowStore } from "@/store/cashflow-store";
 
 type InsightRow = {
   label: string;
   value: string;
 };
 
-const insights: InsightRow[] = [
-  {
-    label: "다가오는 지출",
-    value: "4건"
-  },
-  {
-    label: "월말 예상 잔액",
-    value: "342,000원"
-  },
-  {
-    label: "오늘 가용 현금",
-    value: "557,000원"
-  }
-];
+function formatWon(value: number) {
+  return `${value.toLocaleString("ko-KR")}원`;
+}
 
 export function DashboardAiAnalysisPanel() {
+  const summary = useCashflowStore((state) => state.summary);
+  const upcomingCount = useCashflowStore((state) => state.upcomingExpenses.length);
+
+  const insights: InsightRow[] = [
+    {
+      label: "가까운 지출",
+      value: `${upcomingCount}건`
+    },
+    {
+      label: "예상 월말 잔액",
+      value: formatWon(summary.forecastMonthEndBalance)
+    },
+    {
+      label: "오늘 기준 가용 현금",
+      value: formatWon(summary.availableCash)
+    }
+  ];
+
   return (
     <section aria-labelledby="ai-analysis-heading" className="space-y-4">
       <div>
@@ -29,7 +39,8 @@ export function DashboardAiAnalysisPanel() {
           AI 소비분석 요약
         </h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          현재 잔액과 예정 지출을 기준으로, 오늘 소비가 얼마나 여유 있는지 빠르게 보여줍니다.
+          전역 상태의 잔액과 예정 지출을 기준으로, 오늘 소비를 어디까지 버틸 수 있는지
+          바로 보여줍니다.
         </p>
       </div>
 
@@ -46,19 +57,19 @@ export function DashboardAiAnalysisPanel() {
           </div>
 
           <div className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            안전
+            안정
           </div>
         </div>
 
         <div className="mt-5 space-y-3">
           <StatusBar
-            label="예정 지출 반영 후 여유"
-            value="72%"
+            label="예정 지출 반영 사용률"
+            value={`${summary.budgetUsage}%`}
             accentClassName="bg-primary"
           />
           <StatusBar
-            label="월말 잔액 전망"
-            value="중간 수준"
+            label="예상 월말 잔액 여유"
+            value={summary.forecastMonthEndBalance > 0 ? "있음" : "주의"}
             accentClassName="bg-foreground/70"
           />
         </div>
@@ -69,8 +80,8 @@ export function DashboardAiAnalysisPanel() {
             <span>AI 메모</span>
           </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            오늘 기준 가용 현금은 충분하지만, D-3 이내 예정 지출이 먼저 빠집니다.
-            이번 주는 큰 변동비보다 고정비 대응이 우선입니다.
+            전역 상태에서 계산된 예정 지출이 오늘 기준 가용 현금보다 적습니다. 지금은
+            큰 구매만 한 번 더 걸러보면 됩니다.
           </p>
         </div>
 
@@ -91,7 +102,7 @@ export function DashboardAiAnalysisPanel() {
 
         <div className="mt-5 flex items-center gap-2 rounded-lg border border-border/70 bg-secondary px-4 py-3 text-sm text-muted-foreground">
           <TrendingDown className="h-4 w-4 text-primary" />
-          <span>지출이 늘면 차트와 가용 현금 수치가 즉시 내려가도록 연결될 예정입니다.</span>
+          <span>지출이 늘면 다음 계산값은 store 기준으로 즉시 다시 맞춰집니다.</span>
         </div>
       </div>
     </section>

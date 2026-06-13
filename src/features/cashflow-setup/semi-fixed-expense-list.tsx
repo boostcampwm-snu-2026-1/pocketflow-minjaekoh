@@ -6,7 +6,7 @@ import {
   RefreshCcw,
   ShoppingBasket
 } from "lucide-react";
-import { billingCycleOptions, type SemiFixedExpenseItem } from "./cashflow-types";
+import type { SemiFixedExpenseItem } from "./cashflow-types";
 
 type SemiFixedExpenseListProps = {
   items: SemiFixedExpenseItem[];

@@ -7,52 +7,11 @@ import {
   Clock3,
   ReceiptText
 } from "lucide-react";
+import type { FixedExpenseItem } from "@/store/cashflow-store";
 
-type FixedExpenseItem = {
-  name: string;
-  amount: number;
-  billingCycle: string;
-  nextPaymentDate: string;
-  note: string;
+type FixedExpenseListProps = {
+  items: FixedExpenseItem[];
 };
-
-const fixedExpenses: FixedExpenseItem[] = [
-  {
-    name: "월세",
-    amount: 450000,
-    billingCycle: "매월",
-    nextPaymentDate: "2026-06-25",
-    note: "가장 큰 고정지출"
-  },
-  {
-    name: "관리비",
-    amount: 82000,
-    billingCycle: "매월",
-    nextPaymentDate: "2026-06-18",
-    note: "전기/수도 포함"
-  },
-  {
-    name: "통신비",
-    amount: 55000,
-    billingCycle: "매월",
-    nextPaymentDate: "2026-06-15",
-    note: "기본 요금제"
-  },
-  {
-    name: "인터넷",
-    amount: 33000,
-    billingCycle: "매월",
-    nextPaymentDate: "2026-06-20",
-    note: "집 고정 네트워크 비용"
-  },
-  {
-    name: "보험료",
-    amount: 68000,
-    billingCycle: "매월",
-    nextPaymentDate: "2026-06-28",
-    note: "자동이체"
-  }
-];
 
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
@@ -65,8 +24,7 @@ function formatDate(value: string) {
 function getDaysRemaining(nextPaymentDate: string) {
   const target = new Date(`${nextPaymentDate}T00:00:00`);
   const today = new Date("2026-06-13T00:00:00");
-  const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
-  return diff;
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
 function getDueTone(daysRemaining: number) {
@@ -81,24 +39,22 @@ function getDueTone(daysRemaining: number) {
   return "border-emerald-500/30 bg-emerald-500/10 text-emerald-500";
 }
 
-export function FixedExpenseList() {
-  const totalMonthly = fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
-  const nextDue = [...fixedExpenses].sort(
+export function FixedExpenseList({ items }: FixedExpenseListProps) {
+  const totalMonthly = items.reduce((sum, item) => sum + item.amount, 0);
+  const nextDue = [...items].sort(
     (left, right) =>
       new Date(left.nextPaymentDate).getTime() - new Date(right.nextPaymentDate).getTime()
   )[0];
-  const urgentCount = fixedExpenses.filter(
-    (item) => getDaysRemaining(item.nextPaymentDate) <= 7
-  ).length;
-  const highest = [...fixedExpenses].sort((left, right) => right.amount - left.amount)[0];
+  const urgentCount = items.filter((item) => getDaysRemaining(item.nextPaymentDate) <= 7).length;
+  const highest = [...items].sort((left, right) => right.amount - left.amount)[0];
 
   return (
     <section aria-labelledby="fixed-expense-heading" className="space-y-4">
       <div>
         <p className="text-sm text-muted-foreground">Cashflow setup</p>
-        <h1 id="fixed-expense-heading" className="text-2xl font-bold">
+        <h2 id="fixed-expense-heading" className="text-2xl font-bold">
           고정비 매월 리스트
-        </h1>
+        </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           월세, 관리비, 통신비처럼 매달 빠져나가는 항목을 먼저 정리합니다. 다음 결제일과
           금액을 같이 보면 이번 달 방어선이 바로 보입니다.
@@ -124,12 +80,12 @@ export function FixedExpenseList() {
           </div>
 
           <div className="divide-y divide-border">
-            {fixedExpenses.map((item) => {
+            {items.map((item) => {
               const daysRemaining = getDaysRemaining(item.nextPaymentDate);
 
               return (
                 <article
-                  key={item.name}
+                  key={item.id}
                   className="grid grid-cols-[minmax(0,1.2fr)_auto_auto] gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
                 >
                   <div className="min-w-0 space-y-2">
@@ -173,8 +129,8 @@ export function FixedExpenseList() {
           </div>
 
           <div className="space-y-3">
-            <SummaryRow label="월세 포함 총 고정비" value={formatWon(totalMonthly)} />
-            <SummaryRow label="최고 금액 항목" value={`${highest.name} · ${formatWon(highest.amount)}`} />
+            <SummaryRow label="월 고정비 합계" value={formatWon(totalMonthly)} />
+            <SummaryRow label="가장 큰 항목" value={`${highest.name} · ${formatWon(highest.amount)}`} />
             <SummaryRow label="다음 결제일" value={`${nextDue.name} · ${formatDate(nextDue.nextPaymentDate)}`} />
           </div>
 
