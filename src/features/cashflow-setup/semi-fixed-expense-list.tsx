@@ -5,53 +5,85 @@ import {
   CircleDollarSign,
   Link2,
   RefreshCcw,
-  ShoppingBasket
+  SlidersHorizontal,
+  ShoppingBasket,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+type BillingCycle = "주 1회" | "2주 1회" | "주 2~3회" | "불규칙" | "매월";
+type ExpenseStatus = "active" | "watch" | "api-ready";
 
 type SemiFixedExpenseItem = {
+  id: string;
   name: string;
   amount: number;
-  billingCycle: string;
+  billingCycle: BillingCycle;
   nextPaymentDate: string;
   apiLinked: boolean;
-  status: "active" | "watch" | "api-ready";
+  smartPricing: boolean;
+  status: ExpenseStatus;
   note: string;
 };
 
-const semiFixedExpenses: SemiFixedExpenseItem[] = [
+type DraftState = {
+  amount: string;
+  billingCycle: BillingCycle;
+  nextPaymentDate: string;
+  smartPricing: boolean;
+};
+
+const billingCycleOptions: BillingCycle[] = [
+  "주 1회",
+  "2주 1회",
+  "주 2~3회",
+  "불규칙",
+  "매월"
+];
+
+const initialItems: SemiFixedExpenseItem[] = [
   {
+    id: "groceries",
     name: "장보기",
     amount: 220000,
     billingCycle: "주 1회",
     nextPaymentDate: "2026-06-14",
     apiLinked: true,
+    smartPricing: true,
     status: "api-ready",
     note: "식비와 생필품 묶음"
   },
   {
+    id: "cleaning",
     name: "세제/청소용품",
     amount: 38000,
     billingCycle: "2주 1회",
     nextPaymentDate: "2026-06-17",
     apiLinked: false,
+    smartPricing: false,
     status: "watch",
     note: "소모 속도에 따라 변동"
   },
   {
+    id: "delivery",
     name: "배달음식",
     amount: 96000,
     billingCycle: "불규칙",
     nextPaymentDate: "2026-06-15",
     apiLinked: false,
+    smartPricing: false,
     status: "active",
     note: "충동 지출 경보 대상"
   },
   {
+    id: "coffee",
     name: "커피/간식",
     amount: 54000,
     billingCycle: "주 2~3회",
     nextPaymentDate: "2026-06-14",
     apiLinked: true,
+    smartPricing: true,
     status: "api-ready",
     note: "자잘하지만 누적이 빠름"
   }
@@ -71,7 +103,19 @@ function getDaysRemaining(nextPaymentDate: string) {
   return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
-function getStatusTone(status: SemiFixedExpenseItem["status"]) {
+function deriveStatus(item: SemiFixedExpenseItem, smartPricing: boolean): ExpenseStatus {
+  if (smartPricing) {
+    return "api-ready";
+  }
+
+  if (item.amount >= 80000) {
+    return "active";
+  }
+
+  return item.apiLinked ? "watch" : "watch";
+}
+
+function getStatusTone(status: ExpenseStatus) {
   switch (status) {
     case "api-ready":
       return "border-sky-500/30 bg-sky-500/10 text-sky-500";
@@ -84,13 +128,63 @@ function getStatusTone(status: SemiFixedExpenseItem["status"]) {
   }
 }
 
+function createDraft(item: SemiFixedExpenseItem): DraftState {
+  return {
+    amount: String(item.amount),
+    billingCycle: item.billingCycle,
+    nextPaymentDate: item.nextPaymentDate,
+    smartPricing: item.smartPricing
+  };
+}
+
 export function SemiFixedExpenseList() {
-  const totalMonthly = semiFixedExpenses.reduce((sum, item) => sum + item.amount, 0);
-  const apiLinkedCount = semiFixedExpenses.filter((item) => item.apiLinked).length;
-  const dueSoonCount = semiFixedExpenses.filter(
-    (item) => getDaysRemaining(item.nextPaymentDate) <= 7
-  ).length;
-  const highest = [...semiFixedExpenses].sort((left, right) => right.amount - left.amount)[0];
+  const [items, setItems] = useState<SemiFixedExpenseItem[]>(initialItems);
+  const [selectedId, setSelectedId] = useState(initialItems[0].id);
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedId) ?? items[0],
+    [items, selectedId]
+  );
+  const [draft, setDraft] = useState<DraftState>(createDraft(initialItems[0]));
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedItem) {
+      setDraft(createDraft(selectedItem));
+      setSavedNotice(null);
+    }
+  }, [selectedItem]);
+
+  const totalMonthly = items.reduce((sum, item) => sum + item.amount, 0);
+  const apiLinkedCount = items.filter((item) => item.apiLinked || item.smartPricing).length;
+  const dueSoonCount = items.filter((item) => getDaysRemaining(item.nextPaymentDate) <= 7).length;
+  const highest = [...items].sort((left, right) => right.amount - left.amount)[0];
+
+  function saveDraft() {
+    if (!selectedItem) {
+      return;
+    }
+
+    const nextAmount = Number(draft.amount);
+    if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+      setSavedNotice("금액은 0보다 큰 숫자여야 합니다.");
+      return;
+    }
+
+    const nextItem: SemiFixedExpenseItem = {
+      ...selectedItem,
+      amount: nextAmount,
+      billingCycle: draft.billingCycle,
+      nextPaymentDate: draft.nextPaymentDate,
+      smartPricing: draft.smartPricing,
+      apiLinked: draft.smartPricing ? true : selectedItem.apiLinked,
+      status: deriveStatus(selectedItem, draft.smartPricing)
+    };
+
+    setItems((current) =>
+      current.map((item) => (item.id === selectedItem.id ? nextItem : item))
+    );
+    setSavedNotice("수정 내용을 반영했습니다.");
+  }
 
   return (
     <section aria-labelledby="semi-fixed-expense-heading" className="space-y-4">
@@ -101,7 +195,7 @@ export function SemiFixedExpenseList() {
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           장보기, 배달, 커피처럼 자주 나가지만 금액이 들쭉날쭉한 항목을 따로 모읍니다.
-          API 연동 가능 항목은 나중에 실시간 가격으로 다시 계산할 수 있게 표시합니다.
+          항목을 누르면 오른쪽에서 금액, 주기, 다음 결제일을 바로 조정할 수 있습니다.
         </p>
       </div>
 
@@ -111,19 +205,11 @@ export function SemiFixedExpenseList() {
           label="준고정비 월 환산"
           value={formatWon(totalMonthly)}
         />
-        <MetricCard
-          icon={Link2}
-          label="API 연동 가능"
-          value={`${apiLinkedCount}건`}
-        />
-        <MetricCard
-          icon={RefreshCcw}
-          label="7일 내 재확인"
-          value={`${dueSoonCount}건`}
-        />
+        <MetricCard icon={Link2} label="API 연동 가능" value={`${apiLinkedCount}건`} />
+        <MetricCard icon={RefreshCcw} label="7일 내 재확인" value={`${dueSoonCount}건`} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
         <div className="overflow-hidden rounded-xl border bg-card">
           <div className="grid grid-cols-[minmax(0,1.2fr)_auto_auto] gap-4 border-b border-border px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             <span>항목</span>
@@ -132,13 +218,19 @@ export function SemiFixedExpenseList() {
           </div>
 
           <div className="divide-y divide-border">
-            {semiFixedExpenses.map((item) => {
+            {items.map((item) => {
               const daysRemaining = getDaysRemaining(item.nextPaymentDate);
+              const isSelected = item.id === selectedId;
 
               return (
-                <article
-                  key={item.name}
-                  className="grid grid-cols-[minmax(0,1.2fr)_auto_auto] gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  className={[
+                    "grid w-full grid-cols-[minmax(0,1.2fr)_auto_auto] gap-4 px-5 py-4 text-left transition-colors hover:bg-secondary/40",
+                    isSelected ? "bg-secondary/30" : ""
+                  ].join(" ")}
                 >
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -150,7 +242,7 @@ export function SemiFixedExpenseList() {
                           getStatusTone(item.status)
                         ].join(" ")}
                       >
-                        {item.apiLinked ? "API 연동 가능" : "수동 관리"}
+                        {item.smartPricing ? "API 연동 가능" : "수동 관리"}
                       </span>
                     </div>
                     <p className="text-xs leading-5 text-muted-foreground">{item.note}</p>
@@ -177,7 +269,7 @@ export function SemiFixedExpenseList() {
                       {formatDate(item.nextPaymentDate)} · {item.billingCycle}
                     </span>
                   </div>
-                </article>
+                </button>
               );
             })}
           </div>
@@ -186,22 +278,150 @@ export function SemiFixedExpenseList() {
         <aside className="space-y-4 rounded-xl border bg-background p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <BadgeCheck className="h-4 w-4 text-primary" />
-            관리 요약
+            상세 설정
           </div>
 
-          <div className="space-y-3">
-            <SummaryRow label="월 환산 합계" value={formatWon(totalMonthly)} />
-            <SummaryRow label="API 연동 항목" value={`${apiLinkedCount}건`} />
-            <SummaryRow label="가장 큰 변동비" value={`${highest.name} · ${formatWon(highest.amount)}`} />
-          </div>
+          {selectedItem ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/70 bg-card px-4 py-4">
+                <p className="text-xs text-muted-foreground">선택된 항목</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">{selectedItem.name}</span>
+                  <span
+                    className={[
+                      "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                      getStatusTone(selectedItem.status)
+                    ].join(" ")}
+                  >
+                    {selectedItem.smartPricing ? "연동 가능" : "수동 관리"}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {selectedItem.note}
+                </p>
+              </div>
 
-          <div className="rounded-lg border border-border/70 bg-secondary/40 px-4 py-4 text-sm leading-6 text-muted-foreground">
-            준고정비는 다음 단계에서 API 가격 조회와 상세 설정 패널로 연결합니다.
-            지금은 목록과 상태값만 먼저 고정한 상태입니다.
-          </div>
+              <div className="space-y-3">
+                <Field label="금액">
+                  <input
+                    value={draft.amount}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        amount: event.target.value.replace(/[^\d]/g, "")
+                      }))
+                    }
+                    inputMode="numeric"
+                    className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary"
+                  />
+                </Field>
+
+                <Field label="주기">
+                  <select
+                    value={draft.billingCycle}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        billingCycle: event.target.value as BillingCycle
+                      }))
+                    }
+                    className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary"
+                  >
+                    {billingCycleOptions.map((cycle) => (
+                      <option key={cycle} value={cycle}>
+                        {cycle}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="다음 결제일">
+                  <input
+                    type="date"
+                    value={draft.nextPaymentDate}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        nextPaymentDate: event.target.value
+                      }))
+                    }
+                    className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary"
+                  />
+                </Field>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    smartPricing: !current.smartPricing
+                  }))
+                }
+                className="flex w-full items-center justify-between rounded-lg border border-border/70 bg-card px-4 py-3 text-left"
+              >
+                <div>
+                  <p className="text-sm font-medium text-foreground">스마트 프라이싱</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    가격 조회 연동 대상인지 표시합니다.
+                  </p>
+                </div>
+                {draft.smartPricing ? (
+                  <ToggleRight className="h-8 w-8 text-primary" />
+                ) : (
+                  <ToggleLeft className="h-8 w-8 text-muted-foreground" />
+                )}
+              </button>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryRow
+                  label="현재 다음 결제"
+                  value={`${formatDate(selectedItem.nextPaymentDate)} · ${selectedItem.billingCycle}`}
+                />
+                <SummaryRow
+                  label="편집 후 상태"
+                  value={draft.smartPricing ? "API 연동 가능" : "수동 관리"}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={saveDraft}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                변경사항 저장
+              </button>
+
+              {savedNotice ? (
+                <div className="rounded-lg border border-border/70 bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                  {savedNotice}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border/70 bg-secondary/40 px-4 py-4 text-sm leading-6 text-muted-foreground">
+              항목을 선택하면 상세 설정을 볼 수 있습니다.
+            </div>
+          )}
         </aside>
       </div>
     </section>
+  );
+}
+
+function Field({
+  label,
+  children
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
 
