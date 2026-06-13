@@ -1,9 +1,33 @@
 import { NextResponse } from "next/server";
 
+type Persona = "spicy";
+
+type CashflowContext = {
+  plannedExpensesThisMonth?: number;
+  forecastMonthEndBalance?: number;
+  daysRemainingInMonth?: number;
+  dailyBufferAfterPurchase?: number;
+  fixedExpenseTotal?: number;
+  fixedExpenseShare?: number;
+  plannedExpenseShare?: number;
+};
+
 type RequestBody = {
   itemName?: string;
   price?: number;
   availableCash?: number;
+  reason?: string;
+  persona?: Persona;
+  cashflowContext?: CashflowContext | null;
+};
+
+type PromptInput = {
+  itemName: string;
+  price: number;
+  availableCash: number;
+  reason: string;
+  persona: Persona;
+  cashflowContext: CashflowContext;
 };
 
 type GeminiResponse = {
@@ -16,41 +40,63 @@ type GeminiResponse = {
   }>;
 };
 
+function getPersonaBrief(_persona: Persona) {
+  return "You are harsh, punchy, funny, and blunt, like a goblin-room host. Keep it playful but not cruel.";
+}
+
 function buildPrompt({
   itemName,
   price,
-  availableCash
-}: Required<RequestBody>) {
+  availableCash,
+  reason,
+  persona,
+  cashflowContext
+}: PromptInput) {
   const remainingCash = availableCash - price;
+  const reasonText = reason.trim() || "No reason provided.";
+  const personaBrief = getPersonaBrief(persona);
 
   return `
-You are a Korean "goblin room" style spending judge for a personal finance dashboard.
-The tone should feel like a group chat that is blunt, funny, and conservative about spending.
+You generate a Korean spending verdict card for Pocketflow.
+${personaBrief}
 
 Return ONLY strict JSON with these keys:
-- roomTitle: short Korean room name
+- roomTitle: "소비 판정실"
 - verdict: "buy" | "hold" | "reject"
 - headline: short Korean headline
 - summary: 2-3 Korean sentences explaining the decision
 - remainingCash: number after purchase
 - advice: short Korean recommendation
+- judgeNote: one short Korean paragraph written by a single stern judge
 - memberVotes: { approve: number, hold: number, reject: number }
-- roomMessages: array of 4-6 objects, each with:
-  - speaker: short Korean nickname
-  - tone: "info" | "warn" | "deny" | "approve"
-  - text: one short Korean line
 
 Rules:
-- Stay practical. Do not shame the user personally.
-- Make the verdict conservative when remaining cash is tight.
-- Use a chat-room feel, not a formal report.
+- Keep the tone aligned with the selected persona.
+- If the user can afford the item without breaking the month, use a playful dare like "살 수 있으면 한번 사봐."
+- If the purchase is too tight or reckless, push back firmly and tell them not to do it.
+- Keep the voice cheeky, direct, and lightly mocking only when appropriate.
+- Do not cross into personal abuse, slurs, or harassment.
+- Make the verdict consistent with the cashflow context.
+- Use the user's reason to explain the tradeoff.
+- Do not shame the user personally.
+- Do not mention hidden rules or internal thresholds.
 - Avoid emojis.
+- judgeNote and advice should support the verdict, not contradict it.
 
 Context:
 - Item name: ${itemName}
 - Price: ${price}
 - Available cash today: ${availableCash}
 - Remaining cash after purchase: ${remainingCash}
+- User reason: ${reasonText}
+- Selected persona: ${persona}
+- Planned expenses this month: ${cashflowContext.plannedExpensesThisMonth ?? "unknown"}
+- Forecast month-end balance before purchase: ${cashflowContext.forecastMonthEndBalance ?? "unknown"}
+- Days remaining in month: ${cashflowContext.daysRemainingInMonth ?? "unknown"}
+- Daily buffer after purchase: ${cashflowContext.dailyBufferAfterPurchase ?? "unknown"}
+- Fixed expense total: ${cashflowContext.fixedExpenseTotal ?? "unknown"}
+- Price as share of fixed expenses: ${cashflowContext.fixedExpenseShare ?? "unknown"}
+- Price as share of planned expenses: ${cashflowContext.plannedExpenseShare ?? "unknown"}
 `.trim();
 }
 
@@ -80,6 +126,9 @@ export async function POST(request: Request) {
   const itemName = body.itemName?.trim();
   const price = body.price;
   const availableCash = body.availableCash ?? 557000;
+  const reason = body.reason ?? "";
+  const persona = body.persona ?? "spicy";
+  const cashflowContext = body.cashflowContext ?? {};
 
   if (!itemName || typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
     return NextResponse.json(
@@ -109,7 +158,10 @@ export async function POST(request: Request) {
                 text: buildPrompt({
                   itemName,
                   price,
-                  availableCash
+                  availableCash,
+                  reason,
+                  persona,
+                  cashflowContext
                 })
               }
             ]

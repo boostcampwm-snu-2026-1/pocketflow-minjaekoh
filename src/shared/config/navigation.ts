@@ -7,12 +7,12 @@ export const navigationItems = [
     icon: LayoutDashboard
   },
   {
-    label: "지출 관리",
+    label: "가계부 기록",
     href: "/expense-log",
     icon: Wallet
   },
   {
-    label: "정기 지출 설정",
+    label: "정기 지출 시스템",
     href: "/cashflow-setup",
     icon: CalendarClock
   }

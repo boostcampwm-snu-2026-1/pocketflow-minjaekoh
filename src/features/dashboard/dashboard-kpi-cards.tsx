@@ -1,12 +1,11 @@
 "use client";
 
+import { CalendarRange, ArrowDownRight, ArrowUpRight, Wallet } from "lucide-react";
 import {
-  BadgePercent,
-  CalendarRange,
-  Landmark,
-  Wallet
-} from "lucide-react";
-import { useCashflowStore } from "@/store/cashflow-store";
+  buildForecastCashflowSeries,
+  useCashflowStore,
+  type ForecastCashflowPoint
+} from "@/store/cashflow-store";
 
 type KpiCard = {
   title: string;
@@ -20,37 +19,57 @@ function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
+function sumSeries(points: ForecastCashflowPoint[], key: "incoming" | "outgoing") {
+  return points.reduce((sum, point) => sum + point[key], 0);
+}
+
 export function DashboardKpiCards() {
-  const summary = useCashflowStore((state) => state.summary);
+  const currentBalance = useCashflowStore((state) => state.summary.currentBalance);
+  const recurringIncomes = useCashflowStore((state) => state.recurringIncomes);
+  const fixedExpenses = useCashflowStore((state) => state.fixedExpenses);
+  const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
+
+  const forecast = buildForecastCashflowSeries({
+    startingBalance: currentBalance,
+    recurringIncomes,
+    fixedExpenses,
+    semiFixedExpenses,
+    horizonDays: 30
+  });
+
+  const totalIncoming = sumSeries(forecast, "incoming");
+  const totalOutgoing = sumSeries(forecast, "outgoing");
+  const finalBalance = forecast.at(-1)?.cash ?? currentBalance;
 
   const kpiCards: KpiCard[] = [
     {
-      title: "오늘 사용 가능 금액",
-      value: formatWon(summary.availableCash),
-      description: `현재 잔액 ${formatWon(summary.currentBalance)} - 예정 지출 ${formatWon(summary.upcomingSpend)}`,
+      title: "현재 잔액",
+      value: formatWon(currentBalance),
+      description: "지금 당장 보이는 잔액입니다.",
       icon: Wallet,
-      tone: "highlight"
-    },
-    {
-      title: "예상 월말 잔액",
-      value: formatWon(summary.forecastMonthEndBalance),
-      description: "이번 달 예정 지출을 반영한 월말 기준 잔액",
-      icon: Landmark,
       tone: "default"
     },
     {
-      title: "예산 사용률",
-      value: `${summary.budgetUsage}%`,
-      description: "이번 달 설정 예산 대비 현재 사용 비중",
-      icon: BadgePercent,
+      title: "30일 유입",
+      value: formatWon(totalIncoming),
+      description: "앞으로 30일 동안 들어올 돈입니다.",
+      icon: ArrowUpRight,
       tone: "default"
     },
     {
-      title: "이번 달 예정 지출",
-      value: formatWon(summary.plannedExpensesThisMonth),
-      description: "고정비와 준고정비를 합친 이번 달 예상 지출",
+      title: "30일 유출",
+      value: formatWon(totalOutgoing),
+      description: "앞으로 30일 동안 나갈 돈입니다.",
+      icon: ArrowDownRight,
+      tone: "default"
+    },
+    {
+      title: "월말 잔액",
+      value: formatWon(finalBalance),
+      description:
+        finalBalance < 0 ? "적자입니다. 지출을 바로 줄여야 합니다." : "현재 흐름이면 잔액이 남습니다.",
       icon: CalendarRange,
-      tone: "default"
+      tone: finalBalance < 0 ? "highlight" : "default"
     }
   ];
 
@@ -59,15 +78,12 @@ export function DashboardKpiCards() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">Pocketflow</p>
-          <h1
-            id="dashboard-kpi-heading"
-            className="text-2xl font-semibold tracking-tight md:text-3xl"
-          >
-            오늘 기준 가용 현금
+          <h1 id="dashboard-kpi-heading" className="text-2xl font-semibold tracking-tight md:text-3xl">
+            오늘의 현금 흐름
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            현재 잔액과 예정 지출을 한 화면에서 같이 보면서, 지금 당장 쓸 수 있는
-            금액을 먼저 확인합니다.
+            그래프와 같은 30일 예측 시리즈 기준으로 현재 잔액, 유입, 유출, 월말 잔액만
+            보여줍니다.
           </p>
         </div>
         <div className="rounded-full border border-border/80 bg-secondary px-3 py-1 text-xs text-muted-foreground">
@@ -85,7 +101,7 @@ export function DashboardKpiCards() {
               className={[
                 "relative overflow-hidden rounded-xl border p-5 transition-colors",
                 card.tone === "highlight"
-                  ? "border-primary/40 bg-primary/10"
+                  ? "border-destructive/35 bg-destructive/10"
                   : "bg-card hover:border-primary/30"
               ].join(" ")}
             >
@@ -109,7 +125,7 @@ export function DashboardKpiCards() {
 
               {card.tone === "highlight" ? (
                 <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-background/70">
-                  <div className="h-full w-[72%] rounded-full bg-primary" />
+                  <div className="h-full w-[72%] rounded-full bg-destructive" />
                 </div>
               ) : (
                 <div className="mt-4 h-1.5 w-full rounded-full bg-secondary" />
