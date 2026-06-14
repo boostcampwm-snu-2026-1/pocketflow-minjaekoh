@@ -34,14 +34,14 @@ export function DashboardKpiCards() {
     {
       title: "현재 잔액",
       value: formatWon(currentBalance),
-      description: "지금 기준으로 반영된 실제 잔액입니다.",
+      description: "지금 시점 기준으로 반영된 실제 잔액입니다.",
       icon: Wallet,
       tone: "default"
     },
     {
       title: "30일 예상 수입",
       value: formatWon(rolling.totalIncoming),
-      description: "오늘부터 30일 동안 들어올 것으로 잡힌 수입입니다.",
+      description: "당일부터 30일 동안 들어올 것으로 잡힌 수입입니다.",
       icon: ArrowUpRight,
       tone: "default"
     },
@@ -70,10 +70,10 @@ export function DashboardKpiCards() {
         <div>
           <p className="text-sm text-muted-foreground">Pocketflow</p>
           <h1 id="dashboard-kpi-heading" className="text-2xl font-semibold tracking-tight md:text-3xl">
-            오늘 기준 30일 현금흐름
+            30일 현금흐름
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            월말이 아니라 오늘부터 30일 롤링 타임라인으로 잔액, 수입, 지출, 최저점을 봅니다.
+            월말이 아니라 당일부터 30일 롤링 타임라인으로 잔액, 수입, 지출, 최저점을 봅니다.
           </p>
         </div>
       </div>
