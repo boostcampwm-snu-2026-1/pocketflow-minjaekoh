@@ -6,6 +6,7 @@ import {
   ComposedChart,
   Line,
   ReferenceArea,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -13,17 +14,13 @@ import {
   YAxis
 } from "recharts";
 import {
-  buildForecastCashflowSeries,
+  buildRollingCashflowSeries,
   useCashflowStore,
   type ForecastCashflowPoint
 } from "@/store/cashflow-store";
 
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
-}
-
-function formatDate(value: string) {
-  return value.slice(5).replace("-", "/");
 }
 
 function formatMonthDay(value: string) {
@@ -37,15 +34,15 @@ function formatKoreanMoneyUnit(value: number) {
   if (abs >= 100_000_000) {
     const eok = Math.floor(abs / 100_000_000);
     const man = Math.round((abs % 100_000_000) / 10_000);
-    return `${sign}${eok}억${man > 0 ? ` ${man}만원` : ""}`;
+    return `${sign}${eok}억${man > 0 ? ` ${man}만` : ""}`;
   }
 
   if (abs >= 10_000) {
-    return `${sign}${Math.round(abs / 10_000)}만원`;
+    return `${sign}${Math.round(abs / 10_000)}만`;
   }
 
   if (abs >= 1_000) {
-    return `${sign}${Math.round(abs / 1_000)}천원`;
+    return `${sign}${Math.round(abs / 1_000)}천`;
   }
 
   return `${sign}${abs}원`;
@@ -79,12 +76,12 @@ function CustomTooltip({
 
   return (
     <div className="rounded-xl border border-border bg-background px-4 py-3 shadow-lg">
-      <p className="text-xs text-muted-foreground">{formatDate(point.date)}</p>
+      <p className="text-xs text-muted-foreground">{formatMonthDay(point.date)}</p>
       <div className="mt-2 space-y-1 text-sm">
         <p className="font-medium text-foreground">예상 잔액 {formatWon(point.cash)}</p>
-        <p className="text-muted-foreground">들어오는 돈 {formatWon(point.incoming)}</p>
-        <p className="text-muted-foreground">나가는 돈 {formatWon(point.outgoing)}</p>
-        <p className="text-muted-foreground">순변화 {formatWon(point.net)}</p>
+        <p className="text-muted-foreground">예상 수입 {formatWon(point.incoming)}</p>
+        <p className="text-muted-foreground">예상 지출 {formatWon(point.outgoing)}</p>
+        <p className="text-muted-foreground">순변동 {formatWon(point.net)}</p>
       </div>
     </div>
   );
@@ -97,7 +94,7 @@ export function DailyCashflowChart() {
   const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
   const summary = useCashflowStore((state) => state.summary);
 
-  const series = buildForecastCashflowSeries({
+  const series = buildRollingCashflowSeries({
     startingBalance,
     recurringIncomes,
     fixedExpenses,
@@ -108,6 +105,11 @@ export function DailyCashflowChart() {
   const totalIncoming = series.reduce((sum, point) => sum + point.incoming, 0);
   const totalOutgoing = series.reduce((sum, point) => sum + point.outgoing, 0);
   const finalBalance = series[series.length - 1]?.cash ?? startingBalance;
+  const minimumPoint =
+    series.reduce<ForecastCashflowPoint | null>(
+      (lowest, point) => (lowest === null || point.cash < lowest.cash ? point : lowest),
+      null
+    ) ?? series[0];
   const minCash = Math.min(summary.currentBalance, ...series.map((point) => point.cash));
 
   return (
@@ -115,11 +117,10 @@ export function DailyCashflowChart() {
       <div>
         <p className="text-sm text-muted-foreground">Forecast cashflow</p>
         <h2 id="daily-cashflow-heading" className="text-xl font-semibold">
-          30일 현금흐름 그래프
+          30일 롤링 현금그래프
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          정기 수입과 정기 지출을 날짜별로 펼쳐서, 어느 날 돈이 들어오고 나가는지 한 번에
-          볼 수 있게 보여줍니다.
+          오늘부터 30일 동안의 수입, 지출, 잔액 흐름을 한 번에 보여줍니다.
         </p>
       </div>
 
@@ -129,13 +130,16 @@ export function DailyCashflowChart() {
             시작 잔액 {formatWon(summary.currentBalance)}
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
-            예상 유입 {formatWon(totalIncoming)}
+            예상 수입 {formatWon(totalIncoming)}
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
-            예상 유출 {formatWon(totalOutgoing)}
+            예상 지출 {formatWon(totalOutgoing)}
           </span>
           <span className="rounded-full border border-border bg-background px-3 py-1">
             30일 후 {formatWon(finalBalance)}
+          </span>
+          <span className="rounded-full border border-border bg-background px-3 py-1">
+            최저점 {formatMonthDay(minimumPoint.date)} · {formatWon(minimumPoint.cash)}
           </span>
         </div>
 
@@ -181,10 +185,26 @@ export function DailyCashflowChart() {
                   fontSize: 12
                 }}
               />
-              <ReferenceArea y1={minCash} y2={0} fill="#ef4444" fillOpacity={0.08} />
+              {minimumPoint.cash < 0 ? (
+                <ReferenceArea y1={minimumPoint.cash} y2={0} fill="#ef4444" fillOpacity={0.08} />
+              ) : null}
               <ReferenceLine x={getTodayKey()} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" />
-              <Bar dataKey="outgoing" fill="rgb(245 158 11 / 0.4)" radius={[4, 4, 0, 0]} name="유출" />
-              <Bar dataKey="incoming" fill="rgb(34 197 94 / 0.35)" radius={[4, 4, 0, 0]} name="유입" />
+              <ReferenceDot
+                x={minimumPoint.date}
+                y={minimumPoint.cash}
+                r={6}
+                fill="#ef4444"
+                stroke="white"
+                strokeWidth={2}
+                label={{
+                  value: "최저",
+                  position: "top",
+                  fill: "#ef4444",
+                  fontSize: 12
+                }}
+              />
+              <Bar dataKey="outgoing" fill="rgb(245 158 11 / 0.4)" radius={[4, 4, 0, 0]} name="예상 지출" />
+              <Bar dataKey="incoming" fill="rgb(34 197 94 / 0.35)" radius={[4, 4, 0, 0]} name="예상 수입" />
               <Line
                 type="monotone"
                 dataKey="cash"
@@ -195,7 +215,7 @@ export function DailyCashflowChart() {
                 dot={false}
                 activeDot={{ r: 5 }}
                 isAnimationActive={false}
-                name="잔액"
+                name="예상 잔액"
               />
             </ComposedChart>
           </ResponsiveContainer>

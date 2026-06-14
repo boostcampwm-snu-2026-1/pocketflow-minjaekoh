@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import type { ComponentType } from "react";
 import { CircleDollarSign, Link2, PencilLine, RefreshCcw, ShoppingBasket, Trash2 } from "lucide-react";
-import type { SemiFixedExpenseItem } from "./cashflow-types";
+import { buildRollingCashflowMetrics } from "@/store/cashflow-store";
+import type { BillingCycle, SemiFixedExpenseItem } from "./cashflow-types";
 
 type SemiFixedExpenseListProps = {
   items: SemiFixedExpenseItem[];
@@ -26,7 +27,23 @@ function getDaysRemaining(nextPaymentDate: string) {
   return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
-function sortByDate(left: SemiFixedExpenseItem, right: SemiFixedExpenseItem) {
+const cycleRank: Record<BillingCycle, number> = {
+  매일: 0,
+  "주2~3회": 1,
+  "주 1회": 2,
+  "2주 1회": 3,
+  매월: 4,
+  두달: 5,
+  비정기: 6
+};
+
+function sortByCycleThenDate(left: SemiFixedExpenseItem, right: SemiFixedExpenseItem) {
+  const leftRank = cycleRank[left.billingCycle];
+  const rightRank = cycleRank[right.billingCycle];
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
+  }
+
   const leftDate = new Date(`${left.nextPaymentDate}T00:00:00`).getTime();
   const rightDate = new Date(`${right.nextPaymentDate}T00:00:00`).getTime();
   if (leftDate !== rightDate) {
@@ -42,10 +59,20 @@ export function SemiFixedExpenseList({
   onSelect,
   onRemoveItem
 }: SemiFixedExpenseListProps) {
-  const totalMonthly = items.reduce((sum, item) => sum + item.amount, 0);
-  const apiLinkedCount = items.filter((item) => item.apiLinked || item.smartPricing).length;
+  const rolling = useMemo(
+    () =>
+      buildRollingCashflowMetrics({
+        startingBalance: 0,
+        recurringIncomes: [],
+        fixedExpenses: [],
+        semiFixedExpenses: items,
+        horizonDays: 30
+      }),
+    [items]
+  );
+
   const dueSoonCount = items.filter((item) => getDaysRemaining(item.nextPaymentDate) <= 7).length;
-  const sortedItems = useMemo(() => [...items].sort(sortByDate), [items]);
+  const sortedItems = useMemo(() => [...items].sort(sortByCycleThenDate), [items]);
   const shouldScroll = sortedItems.length >= 5;
 
   return (
@@ -57,9 +84,8 @@ export function SemiFixedExpenseList({
         </h2>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard icon={CircleDollarSign} label="월 합계" value={formatWon(totalMonthly)} />
-        <MetricCard icon={Link2} label="API 연동" value={`${apiLinkedCount}건`} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <MetricCard icon={CircleDollarSign} label="30일 예상 지출" value={formatWon(rolling.totalOutgoing)} />
         <MetricCard icon={RefreshCcw} label="7일 내 결제" value={`${dueSoonCount}건`} />
       </div>
 
@@ -78,11 +104,6 @@ export function SemiFixedExpenseList({
               key={item.id}
               className={[
                 "overflow-hidden rounded-xl border bg-card px-4 py-5 transition-colors",
-                item.smartPricing
-                  ? "border-emerald-500/20 bg-emerald-500/5"
-                  : item.apiLinked
-                    ? "border-sky-500/20 bg-sky-500/5"
-                    : "border-amber-500/20 bg-amber-500/5",
                 isSelected ? "ring-1 ring-primary/30" : ""
               ].join(" ")}
             >
@@ -100,35 +121,15 @@ export function SemiFixedExpenseList({
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span
-                      className={[
-                        "rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                        item.smartPricing
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                          : "border-border bg-secondary text-muted-foreground"
-                      ].join(" ")}
-                    >
-                      {item.smartPricing ? "자동 가격 추적" : "수동 관리"}
+                    <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium">
+                      {item.billingCycle}
                     </span>
-                    <span>
-                      {formatDate(item.nextPaymentDate)} · {item.billingCycle}
-                    </span>
+                    <span>{formatDate(item.nextPaymentDate)}</span>
                   </div>
                 </button>
 
                 <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:min-w-56 sm:flex-col sm:items-end">
-                  <div
-                    className={[
-                      "text-sm font-medium",
-                      item.smartPricing
-                        ? "text-emerald-300"
-                        : item.apiLinked
-                          ? "text-sky-300"
-                          : "text-amber-300"
-                    ].join(" ")}
-                  >
-                    {formatWon(item.amount)}
-                  </div>
+                  <div className="text-sm font-medium text-foreground">{formatWon(item.amount)}</div>
                   <div className="text-xs text-muted-foreground">
                     {daysRemaining <= 0 ? "오늘" : `D-${daysRemaining}`}
                   </div>

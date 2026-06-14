@@ -1,7 +1,7 @@
 "use client";
 
-import { CheckCircle2, Clock3, Repeat2 } from "lucide-react";
-import { useMemo } from "react";
+import { CheckCircle2, Clock3, PencilLine, Repeat2, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useCashflowStore } from "@/store/cashflow-store";
 import type { SemiFixedExpenseItem } from "@/features/cashflow-setup/cashflow-types";
 
@@ -26,10 +26,116 @@ function formatDate(value: string) {
   return value.slice(5).replace("-", "/");
 }
 
+function parseAmount(value: string) {
+  const nextAmount = Number(value.replace(/[^\d]/g, ""));
+  return Number.isFinite(nextAmount) && nextAmount > 0 ? Math.round(nextAmount) : null;
+}
+
+function ScheduledExpenseCard({
+  item,
+  onSaveAmount,
+  onConfirm
+}: {
+  item: SemiFixedExpenseItem;
+  onSaveAmount: (item: SemiFixedExpenseItem, amount: number) => void;
+  onConfirm: (item: SemiFixedExpenseItem, amount: number) => void;
+}) {
+  const [draftAmount, setDraftAmount] = useState(String(item.amount));
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftAmount(String(item.amount));
+    setNotice(null);
+  }, [item.amount, item.id]);
+
+  const parsedAmount = useMemo(() => parseAmount(draftAmount), [draftAmount]);
+
+  return (
+    <article className="rounded-xl border border-border/70 bg-background p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate font-medium text-foreground">{item.name}</span>
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-500">
+              {item.billingCycle}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock3 className="h-3.5 w-3.5" />
+              다음 결제일 {formatDate(item.nextPaymentDate)}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Repeat2 className="h-3.5 w-3.5" />
+              {item.note}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2">
+              <PencilLine className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">금액</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={draftAmount}
+                onChange={(event) => {
+                  setDraftAmount(event.target.value.replace(/[^\d]/g, ""));
+                  setNotice(null);
+                }}
+                className="w-28 bg-transparent text-sm font-medium text-foreground outline-none"
+                aria-label={`${item.name} 금액`}
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (parsedAmount === null) {
+                  setNotice("금액을 숫자로 입력해 주세요.");
+                  return;
+                }
+
+                onSaveAmount(item, parsedAmount);
+                setNotice(`금액을 ${formatWon(parsedAmount)}로 저장했습니다.`);
+              }}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
+            >
+              <Save className="h-4 w-4" />
+              금액 수정
+            </button>
+          </div>
+
+          {notice ? (
+            <p className="text-xs text-muted-foreground">{notice}</p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-foreground">{formatWon(item.amount)}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const nextAmount = parsedAmount ?? item.amount;
+              onConfirm(item, nextAmount);
+            }}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            결제 완료
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function ScheduledExpenseReviewPanel({
   onConfirm
 }: ScheduledExpenseReviewPanelProps) {
   const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
+  const updateSemiFixedExpense = useCashflowStore((state) => state.updateSemiFixedExpense);
   const confirmSemiFixedExpense = useCashflowStore(
     (state) => state.confirmSemiFixedExpense
   );
@@ -54,12 +160,12 @@ export function ScheduledExpenseReviewPanel({
               예정된 지출 확인
             </h2>
             <p className="mt-2 max-w-2xl whitespace-nowrap text-sm leading-6 text-muted-foreground">
-              정기 지출 시스템에서 설정한 항목의 지출 여부를 확정합니다.
+              정기 지출이 도래한 항목들을 결제 전에 확인하고, 금액이 바뀌었으면 여기서 바로 반영할 수 있습니다.
             </p>
           </div>
 
           <div className="rounded-full border border-border/70 bg-secondary px-3 py-1 text-xs text-muted-foreground">
-            오늘 처리할 항목 {dueItems.length}건 / {formatWon(totalAmount)}
+            오늘 처리할 항목 {dueItems.length}개 / {formatWon(totalAmount)}
           </div>
         </div>
 
@@ -70,48 +176,24 @@ export function ScheduledExpenseReviewPanel({
             </div>
           ) : (
             dueItems.map((item) => (
-              <article
+              <ScheduledExpenseCard
                 key={item.id}
-                className="rounded-xl border border-border/70 bg-background p-4"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium text-foreground">{item.name}</span>
-                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-500">
-                        {item.billingCycle}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Clock3 className="h-3.5 w-3.5" />
-                        다음 결제일 {formatDate(item.nextPaymentDate)}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Repeat2 className="h-3.5 w-3.5" />
-                        {item.note}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatWon(item.amount)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        confirmSemiFixedExpense(item.id, getToday());
-                        onConfirm(item);
-                      }}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                      결제 완료
-                    </button>
-                  </div>
-                </div>
-              </article>
+                item={item}
+                onSaveAmount={(nextItem, amount) => {
+                  updateSemiFixedExpense({
+                    ...nextItem,
+                    amount
+                  });
+                }}
+                onConfirm={(nextItem, amount) => {
+                  const confirmedItem = {
+                    ...nextItem,
+                    amount
+                  };
+                  confirmSemiFixedExpense(nextItem.id, getToday(), amount);
+                  onConfirm(confirmedItem);
+                }}
+              />
             ))
           )}
         </div>

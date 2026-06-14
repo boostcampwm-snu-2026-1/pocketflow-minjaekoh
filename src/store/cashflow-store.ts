@@ -1,8 +1,12 @@
-"use client";
+﻿"use client";
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { initialSemiFixedExpenses, type SemiFixedExpenseItem } from "@/features/cashflow-setup/cashflow-types";
+import {
+  initialSemiFixedExpenses,
+  type BillingCycle,
+  type SemiFixedExpenseItem
+} from "@/features/cashflow-setup/cashflow-types";
 
 export type FixedExpenseItem = {
   id: string;
@@ -28,6 +32,15 @@ export type UpcomingExpenseItem = {
   dueInDays: number;
   amount: number;
   category: string;
+};
+
+export type RecentTransactionItem = {
+  id: string;
+  date: string;
+  name: string;
+  category: string;
+  amount: number;
+  type: "expense" | "income";
 };
 
 export type CashflowEvent = {
@@ -65,7 +78,7 @@ const initialFixedExpenses: FixedExpenseItem[] = [
     amount: 82000,
     billingCycle: "매월",
     nextPaymentDate: "2026-06-18",
-    note: "전기/수도 포함"
+    note: "공과금/세대비 포함"
   },
   {
     id: "phone",
@@ -73,7 +86,7 @@ const initialFixedExpenses: FixedExpenseItem[] = [
     amount: 55000,
     billingCycle: "매월",
     nextPaymentDate: "2026-06-15",
-    note: "기본 요금제"
+    note: "기본 요금"
   },
   {
     id: "internet",
@@ -81,7 +94,7 @@ const initialFixedExpenses: FixedExpenseItem[] = [
     amount: 33000,
     billingCycle: "매월",
     nextPaymentDate: "2026-06-20",
-    note: "집 고정 네트워크 비용"
+    note: "집 고정 인터넷 비용"
   },
   {
     id: "insurance",
@@ -96,11 +109,11 @@ const initialFixedExpenses: FixedExpenseItem[] = [
 const initialRecurringIncomes: RecurringIncomeItem[] = [
   {
     id: "part-time",
-    name: "알바비",
+    name: "아르바이트",
     amount: 420000,
     billingCycle: "매월",
     nextPaymentDate: "2026-06-25",
-    note: "매월 정해진 날에 들어오는 고정 수입",
+    note: "매월 정해진 수입",
     autoInclude: true
   },
   {
@@ -147,6 +160,55 @@ const initialUpcomingExpenses: UpcomingExpenseItem[] = [
   }
 ];
 
+const initialRecentTransactions: RecentTransactionItem[] = [
+  {
+    id: "transport-2026-06-06",
+    date: "2026-06-06",
+    name: "출근 교통비",
+    category: "교통비",
+    amount: 12000,
+    type: "expense"
+  },
+  {
+    id: "parttime-2026-06-06",
+    date: "2026-06-06",
+    name: "아르바이트 급여",
+    category: "수입",
+    amount: 48000,
+    type: "income"
+  },
+  {
+    id: "transport-2026-06-05",
+    date: "2026-06-05",
+    name: "교통비",
+    category: "교통비",
+    amount: 3200,
+    type: "expense"
+  },
+  {
+    id: "allowance-2026-06-05",
+    date: "2026-06-05",
+    name: "용돈",
+    category: "기타 수입",
+    amount: 15600,
+    type: "income"
+  },
+  {
+    id: "america-2026-06-04",
+    date: "2026-06-04",
+    name: "아메리카노",
+    category: "식비",
+    amount: 4500,
+    type: "expense"
+  }
+];
+
+function getRecentTransactionNet(transactions: RecentTransactionItem[]) {
+  return transactions.reduce((sum, transaction) => {
+    return transaction.type === "income" ? sum + transaction.amount : sum - transaction.amount;
+  }, 0);
+}
+
 function getLocalDateString(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -167,24 +229,39 @@ function formatLocalDate(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeBillingCycle(value: string): BillingCycle {
+  switch (value) {
+    case "주1":
+      return "주 1회";
+    case "2주":
+      return "2주 1회";
+    default:
+      return value as BillingCycle;
+  }
+}
+
 function advanceByBillingCycle(date: Date, billingCycle: string) {
   const next = new Date(date);
+  const normalizedBillingCycle = normalizeBillingCycle(billingCycle);
 
-  switch (billingCycle) {
+  switch (normalizedBillingCycle) {
     case "매일":
       next.setDate(next.getDate() + 1);
-      return next;
-    case "주1회":
-      next.setDate(next.getDate() + 7);
-      return next;
-    case "2주1회":
-      next.setDate(next.getDate() + 14);
       return next;
     case "주2~3회":
       next.setDate(next.getDate() + 3);
       return next;
+    case "주 1회":
+      next.setDate(next.getDate() + 7);
+      return next;
+    case "2주 1회":
+      next.setDate(next.getDate() + 14);
+      return next;
     case "매월":
       next.setMonth(next.getMonth() + 1);
+      return next;
+    case "두달":
+      next.setMonth(next.getMonth() + 2);
       return next;
     default:
       return next;
@@ -192,7 +269,9 @@ function advanceByBillingCycle(date: Date, billingCycle: string) {
 }
 
 function advanceToNextDueDate(nextPaymentDate: string, billingCycle: string, today: string) {
-  if (billingCycle === "비정기") {
+  const normalizedBillingCycle = normalizeBillingCycle(billingCycle);
+
+  if (normalizedBillingCycle === "비정기") {
     return nextPaymentDate;
   }
 
@@ -200,7 +279,7 @@ function advanceToNextDueDate(nextPaymentDate: string, billingCycle: string, tod
   const todayDate = parseLocalDate(today);
 
   while (nextDate <= todayDate) {
-    const advanced = advanceByBillingCycle(nextDate, billingCycle);
+    const advanced = advanceByBillingCycle(nextDate, normalizedBillingCycle);
     if (advanced.getTime() === nextDate.getTime()) {
       break;
     }
@@ -226,21 +305,23 @@ function buildCashflowSummary(
   upcomingExpenses: UpcomingExpenseItem[],
   recurringIncomes: RecurringIncomeItem[],
   fixedExpenses: FixedExpenseItem[],
-  semiFixedExpenses: SemiFixedExpenseItem[]
+  semiFixedExpenses: SemiFixedExpenseItem[],
+  recentTransactions: RecentTransactionItem[]
 ): CashflowSummary {
-  const upcomingSpend = upcomingExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const actualBalance = baseBalance + getRecentTransactionNet(recentTransactions);
+  const upcomingSpend = 0;
   const recurringIncomeThisMonth = recurringIncomes
     .filter((income) => income.autoInclude)
     .reduce((sum, income) => sum + income.amount, 0);
   const plannedExpensesThisMonth =
     fixedExpenses.reduce((sum, expense) => sum + expense.amount, 0) +
     semiFixedExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const availableCash = baseBalance - upcomingSpend;
-  const forecastMonthEndBalance = baseBalance + recurringIncomeThisMonth - plannedExpensesThisMonth;
+  const availableCash = actualBalance;
+  const forecastMonthEndBalance = actualBalance + recurringIncomeThisMonth - plannedExpensesThisMonth;
   const budgetUsage = Math.round((plannedExpensesThisMonth / monthlyBudgetLimit) * 100);
 
   return {
-    currentBalance: baseBalance,
+    currentBalance: actualBalance,
     upcomingSpend,
     recurringIncomeThisMonth,
     availableCash,
@@ -295,6 +376,17 @@ export type ForecastCashflowPoint = {
   outgoing: number;
   net: number;
   cash: number;
+};
+
+export type RollingCashflowMetrics = {
+  forecastSeries: ForecastCashflowPoint[];
+  totalIncoming: number;
+  totalOutgoing: number;
+  plannedOutgoing: number;
+  forecastBalanceAfter30Days: number;
+  minimumBalanceAfter30Days: number;
+  minimumBalanceDay: number;
+  safeAvailableAmount: number;
 };
 
 export function buildForecastCashflowSeries({
@@ -375,6 +467,136 @@ export function buildForecastCashflowSeries({
   return series;
 }
 
+export function buildRollingCashflowSeries({
+  startingBalance,
+  recurringIncomes,
+  fixedExpenses,
+  semiFixedExpenses,
+  horizonDays = 30,
+  startDate = getLocalDateString()
+}: {
+  startingBalance: number;
+  recurringIncomes: RecurringIncomeItem[];
+  fixedExpenses: FixedExpenseItem[];
+  semiFixedExpenses: SemiFixedExpenseItem[];
+  horizonDays?: number;
+  startDate?: string;
+}): ForecastCashflowPoint[] {
+  const endDate = parseLocalDate(startDate);
+  endDate.setDate(endDate.getDate() + horizonDays - 1);
+
+  const dailyIncoming = new Map<number, number>();
+  const dailyOutgoing = new Map<number, number>();
+  const startDateObject = parseLocalDate(startDate);
+  const scheduledItems: ScheduledCashflowItem[] = [
+    ...recurringIncomes.map((item) => ({ ...item, kind: "income" as const })),
+    ...fixedExpenses.map((item) => ({ ...item, kind: "expense" as const })),
+    ...semiFixedExpenses.map((item) => ({ ...item, kind: "expense" as const }))
+  ];
+
+  for (const item of scheduledItems) {
+    let currentDate = parseLocalDate(item.nextPaymentDate);
+
+    while (currentDate <= endDate) {
+      if (currentDate >= startDateObject) {
+        const dayIndex =
+          Math.floor((currentDate.getTime() - startDateObject.getTime()) / 86400000) + 1;
+
+        if (dayIndex >= 1 && dayIndex <= horizonDays) {
+          if (item.kind === "income") {
+            dailyIncoming.set(dayIndex, (dailyIncoming.get(dayIndex) ?? 0) + item.amount);
+          } else {
+            dailyOutgoing.set(dayIndex, (dailyOutgoing.get(dayIndex) ?? 0) + item.amount);
+          }
+        }
+      }
+
+      const advanced = advanceByBillingCycle(currentDate, item.billingCycle);
+      if (advanced.getTime() === currentDate.getTime()) {
+        break;
+      }
+
+      currentDate = advanced;
+    }
+  }
+
+  let runningCash = startingBalance;
+  const series: ForecastCashflowPoint[] = [];
+
+  for (let day = 1; day <= horizonDays; day += 1) {
+    const incoming = dailyIncoming.get(day) ?? 0;
+    const outgoing = dailyOutgoing.get(day) ?? 0;
+    const net = incoming - outgoing;
+    runningCash += net;
+
+    const pointDate = new Date(startDateObject);
+    pointDate.setDate(pointDate.getDate() + day - 1);
+
+    series.push({
+      day,
+      date: formatLocalDate(pointDate),
+      incoming,
+      outgoing,
+      net,
+      cash: runningCash
+    });
+  }
+
+  return series;
+}
+
+export function buildRollingCashflowMetrics({
+  startingBalance,
+  recurringIncomes,
+  fixedExpenses,
+  semiFixedExpenses,
+  horizonDays = 30,
+  startDate = getLocalDateString()
+}: {
+  startingBalance: number;
+  recurringIncomes: RecurringIncomeItem[];
+  fixedExpenses: FixedExpenseItem[];
+  semiFixedExpenses: SemiFixedExpenseItem[];
+  horizonDays?: number;
+  startDate?: string;
+}): RollingCashflowMetrics {
+  const forecastSeries = buildRollingCashflowSeries({
+    startingBalance,
+    recurringIncomes,
+    fixedExpenses,
+    semiFixedExpenses,
+    horizonDays,
+    startDate
+  });
+  const lastPoint = forecastSeries.at(-1);
+  const totalIncoming = forecastSeries.reduce((sum, point) => sum + point.incoming, 0);
+  const totalOutgoing = forecastSeries.reduce((sum, point) => sum + point.outgoing, 0);
+  const plannedOutgoing = totalOutgoing;
+  const minimumPoint =
+    forecastSeries.reduce<ForecastCashflowPoint | null>(
+      (lowest, point) => (lowest === null || point.cash < lowest.cash ? point : lowest),
+      null
+    ) ?? {
+      day: 0,
+      date: startDate,
+      incoming: 0,
+      outgoing: 0,
+      net: 0,
+      cash: startingBalance
+    };
+
+  return {
+    forecastSeries,
+    totalIncoming,
+    totalOutgoing,
+    plannedOutgoing,
+    forecastBalanceAfter30Days: lastPoint?.cash ?? startingBalance,
+    minimumBalanceAfter30Days: minimumPoint.cash,
+    minimumBalanceDay: minimumPoint.day,
+    safeAvailableAmount: Math.max(0, minimumPoint.cash)
+  };
+}
+
 function buildUpcomingImpactRows(
   upcomingExpenses: UpcomingExpenseItem[],
   baseCash = 557000
@@ -397,13 +619,15 @@ function buildDerivedState(state: {
   recurringIncomes: RecurringIncomeItem[];
   fixedExpenses: FixedExpenseItem[];
   semiFixedExpenses: SemiFixedExpenseItem[];
+  recentTransactions: RecentTransactionItem[];
 }) {
   const summary = buildCashflowSummary(
     state.startingBalance,
     state.upcomingExpenses,
     state.recurringIncomes,
     state.fixedExpenses,
-    state.semiFixedExpenses
+    state.semiFixedExpenses,
+    state.recentTransactions
   );
   const cashflowSeries = buildCashflowSeries(state.upcomingExpenses, summary.availableCash);
   const upcomingImpactRows = buildUpcomingImpactRows(state.upcomingExpenses, summary.availableCash);
@@ -421,6 +645,7 @@ type CashflowStoreState = {
   fixedExpenses: FixedExpenseItem[];
   recurringIncomes: RecurringIncomeItem[];
   semiFixedExpenses: SemiFixedExpenseItem[];
+  recentTransactions: RecentTransactionItem[];
   selectedSemiFixedExpenseId: string;
   upcomingExpenses: UpcomingExpenseItem[];
   summary: CashflowSummary;
@@ -428,6 +653,8 @@ type CashflowStoreState = {
   upcomingImpactRows: Array<UpcomingExpenseItem & { remainingCash: number }>;
   syncScheduledItems: (today?: string) => void;
   selectSemiFixedExpense: (id: string) => void;
+  addRecentTransaction: (nextItem: RecentTransactionItem) => void;
+  removeRecentTransaction: (id: string) => void;
   addFixedExpense: (nextItem: FixedExpenseItem) => void;
   removeFixedExpense: (id: string) => void;
   addRecurringIncome: (nextItem: RecurringIncomeItem) => void;
@@ -454,7 +681,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
         upcomingExpenses: initialUpcomingExpenses,
         recurringIncomes,
         fixedExpenses: initialFixedExpenses,
-        semiFixedExpenses
+        semiFixedExpenses,
+        recentTransactions: initialRecentTransactions
       });
 
       return {
@@ -463,6 +691,7 @@ export const useCashflowStore = create<CashflowStoreState>()(
         fixedExpenses: initialFixedExpenses,
         recurringIncomes,
         semiFixedExpenses,
+        recentTransactions: initialRecentTransactions,
         selectedSemiFixedExpenseId: semiFixedExpenses[0].id,
         upcomingExpenses: initialUpcomingExpenses,
         summary: derived.summary,
@@ -481,7 +710,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
               upcomingExpenses: state.upcomingExpenses,
               recurringIncomes: nextRecurringIncomes,
               fixedExpenses: nextFixedExpenses,
-              semiFixedExpenses: state.semiFixedExpenses
+              semiFixedExpenses: state.semiFixedExpenses,
+              recentTransactions: state.recentTransactions
             });
 
             return {
@@ -499,6 +729,46 @@ export const useCashflowStore = create<CashflowStoreState>()(
         ...state,
         selectedSemiFixedExpenseId: id
       })),
+    addRecentTransaction: (nextItem) =>
+      set((state) => {
+        const nextRecentTransactions = [nextItem, ...state.recentTransactions];
+        const nextDerived = buildDerivedState({
+          startingBalance: state.startingBalance,
+          upcomingExpenses: state.upcomingExpenses,
+          recurringIncomes: state.recurringIncomes,
+          fixedExpenses: state.fixedExpenses,
+          semiFixedExpenses: state.semiFixedExpenses,
+          recentTransactions: nextRecentTransactions
+        });
+
+        return {
+          ...state,
+          recentTransactions: nextRecentTransactions,
+          summary: nextDerived.summary,
+          cashflowSeries: nextDerived.cashflowSeries,
+          upcomingImpactRows: nextDerived.upcomingImpactRows
+        };
+      }),
+    removeRecentTransaction: (id) =>
+      set((state) => {
+        const nextRecentTransactions = state.recentTransactions.filter((item) => item.id !== id);
+        const nextDerived = buildDerivedState({
+          startingBalance: state.startingBalance,
+          upcomingExpenses: state.upcomingExpenses,
+          recurringIncomes: state.recurringIncomes,
+          fixedExpenses: state.fixedExpenses,
+          semiFixedExpenses: state.semiFixedExpenses,
+          recentTransactions: nextRecentTransactions
+        });
+
+        return {
+          ...state,
+          recentTransactions: nextRecentTransactions,
+          summary: nextDerived.summary,
+          cashflowSeries: nextDerived.cashflowSeries,
+          upcomingImpactRows: nextDerived.upcomingImpactRows
+        };
+      }),
     addFixedExpense: (nextItem) =>
       set((state) => {
         const nextFixedExpenses = [...state.fixedExpenses, nextItem];
@@ -507,7 +777,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           state.recurringIncomes,
           nextFixedExpenses,
-          state.semiFixedExpenses
+          state.semiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -534,7 +805,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           state.recurringIncomes,
           nextFixedExpenses,
-          state.semiFixedExpenses
+          state.semiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -561,7 +833,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           nextRecurringIncomes,
           state.fixedExpenses,
-          state.semiFixedExpenses
+          state.semiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -588,7 +861,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           nextRecurringIncomes,
           state.fixedExpenses,
-          state.semiFixedExpenses
+          state.semiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -615,7 +889,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           state.recurringIncomes,
           state.fixedExpenses,
-          nextSemiFixedExpenses
+          nextSemiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -646,7 +921,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           state.recurringIncomes,
           state.fixedExpenses,
-          nextSemiFixedExpenses
+          nextSemiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -676,7 +952,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           state.upcomingExpenses,
           state.recurringIncomes,
           nextFixedExpenses,
-          state.semiFixedExpenses
+          state.semiFixedExpenses,
+          state.recentTransactions
         );
         const nextCashflowSeries = buildCashflowSeries(
           state.upcomingExpenses,
@@ -705,7 +982,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           upcomingExpenses: state.upcomingExpenses,
           recurringIncomes: nextRecurringIncomes,
           fixedExpenses: state.fixedExpenses,
-          semiFixedExpenses: state.semiFixedExpenses
+          semiFixedExpenses: state.semiFixedExpenses,
+          recentTransactions: state.recentTransactions
         });
 
         return {
@@ -726,7 +1004,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           upcomingExpenses: state.upcomingExpenses,
           recurringIncomes: state.recurringIncomes,
           fixedExpenses: state.fixedExpenses,
-          semiFixedExpenses: nextSemiFixedExpenses
+          semiFixedExpenses: nextSemiFixedExpenses,
+          recentTransactions: state.recentTransactions
         });
 
         return {
@@ -755,7 +1034,8 @@ export const useCashflowStore = create<CashflowStoreState>()(
           upcomingExpenses: state.upcomingExpenses,
           recurringIncomes: state.recurringIncomes,
           fixedExpenses: state.fixedExpenses,
-          semiFixedExpenses: nextSemiFixedExpenses
+          semiFixedExpenses: nextSemiFixedExpenses,
+          recentTransactions: state.recentTransactions
         });
 
         return {
@@ -777,13 +1057,37 @@ export const useCashflowStore = create<CashflowStoreState>()(
         fixedExpenses: state.fixedExpenses,
         recurringIncomes: state.recurringIncomes,
         semiFixedExpenses: state.semiFixedExpenses,
+        recentTransactions: state.recentTransactions,
         selectedSemiFixedExpenseId: state.selectedSemiFixedExpenseId,
         upcomingExpenses: state.upcomingExpenses
       }),
       merge: (persistedState, currentState) => {
+        const normalizedPersistedState: Partial<CashflowStoreState> = persistedState
+          ? {
+              ...(persistedState as Partial<CashflowStoreState>),
+              fixedExpenses: (persistedState as Partial<CashflowStoreState>).fixedExpenses?.map(
+                (item) => ({
+                  ...item,
+                  billingCycle: normalizeBillingCycle(item.billingCycle)
+                })
+              ),
+              recurringIncomes: (persistedState as Partial<CashflowStoreState>).recurringIncomes?.map(
+                (item) => ({
+                  ...item,
+                  billingCycle: normalizeBillingCycle(item.billingCycle)
+                })
+              ),
+              semiFixedExpenses: (persistedState as Partial<CashflowStoreState>).semiFixedExpenses?.map(
+                (item) => ({
+                  ...item,
+                  billingCycle: normalizeBillingCycle(item.billingCycle)
+                })
+              )
+            }
+          : {};
         const merged = {
           ...currentState,
-          ...(persistedState as Partial<CashflowStoreState>)
+          ...normalizedPersistedState
         };
         const derived = buildDerivedState(merged);
 
@@ -809,3 +1113,4 @@ export function getCashflowSeries(state = useCashflowStore.getState()) {
 export function getUpcomingImpactRows(state = useCashflowStore.getState()) {
   return state.upcomingImpactRows;
 }
+
