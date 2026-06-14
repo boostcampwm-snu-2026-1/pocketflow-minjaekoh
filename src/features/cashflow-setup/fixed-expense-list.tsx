@@ -35,10 +35,18 @@ function formatDate(value: string) {
   return value.slice(5).replace("-", "/");
 }
 
-function getDaysRemaining(nextPaymentDate: string) {
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getDaysRemaining(nextPaymentDate: string, today = getLocalDateString()) {
   const target = new Date(`${nextPaymentDate}T00:00:00`);
-  const today = new Date("2026-06-13T00:00:00");
-  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+  const current = new Date(`${today}T00:00:00`);
+  return Math.ceil((target.getTime() - current.getTime()) / 86400000);
 }
 
 function createId(prefix: string) {

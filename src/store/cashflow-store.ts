@@ -59,7 +59,7 @@ export type CashflowSummary = {
   plannedExpensesThisMonth: number;
 };
 
-const startingBalance = 842000;
+const initialStartingBalance = 842000;
 const monthlyBudgetLimit = 781250;
 const storageKey = "pocketflow-cashflow-store";
 
@@ -229,6 +229,25 @@ function formatLocalDate(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function isLastDayOfMonth(date: Date) {
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  return date.getDate() === lastDay;
+}
+
+function addCalendarMonths(date: Date, months: number) {
+  const next = new Date(date);
+  const isEndOfMonth = isLastDayOfMonth(next);
+  const originalDay = next.getDate();
+
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+
+  const lastDayOfTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(isEndOfMonth ? lastDayOfTargetMonth : Math.min(originalDay, lastDayOfTargetMonth));
+
+  return next;
+}
+
 function normalizeBillingCycle(value: string): BillingCycle {
   switch (value) {
     case "주1":
@@ -258,11 +277,9 @@ function advanceByBillingCycle(date: Date, billingCycle: string) {
       next.setDate(next.getDate() + 14);
       return next;
     case "매월":
-      next.setMonth(next.getMonth() + 1);
-      return next;
+      return addCalendarMonths(next, 1);
     case "두달":
-      next.setMonth(next.getMonth() + 2);
-      return next;
+      return addCalendarMonths(next, 2);
     default:
       return next;
   }
@@ -664,6 +681,7 @@ type CashflowStoreState = {
   updateFixedExpense: (nextItem: FixedExpenseItem) => void;
   updateRecurringIncome: (nextItem: RecurringIncomeItem) => void;
   updateSemiFixedExpense: (nextItem: SemiFixedExpenseItem) => void;
+  setStartingBalance: (startingBalance: number) => void;
   confirmSemiFixedExpense: (
     id: string,
     confirmedAt?: string,
@@ -677,7 +695,7 @@ export const useCashflowStore = create<CashflowStoreState>()(
       const semiFixedExpenses = initialSemiFixedExpenses;
       const recurringIncomes = initialRecurringIncomes;
       const derived = buildDerivedState({
-        startingBalance,
+        startingBalance: initialStartingBalance,
         upcomingExpenses: initialUpcomingExpenses,
         recurringIncomes,
         fixedExpenses: initialFixedExpenses,
@@ -686,7 +704,7 @@ export const useCashflowStore = create<CashflowStoreState>()(
       });
 
       return {
-        startingBalance,
+        startingBalance: initialStartingBalance,
         lastCheckedDate: getLocalDateString(),
         fixedExpenses: initialFixedExpenses,
         recurringIncomes,
@@ -942,110 +960,133 @@ export const useCashflowStore = create<CashflowStoreState>()(
           upcomingImpactRows: nextUpcomingImpactRows
         };
       }),
-    updateFixedExpense: (nextItem) =>
-      set((state) => {
-        const nextFixedExpenses = state.fixedExpenses.map((item) =>
-          item.id === nextItem.id ? nextItem : item
-        );
-        const nextSummary = buildCashflowSummary(
-          state.startingBalance,
-          state.upcomingExpenses,
-          state.recurringIncomes,
-          nextFixedExpenses,
-          state.semiFixedExpenses,
-          state.recentTransactions
-        );
-        const nextCashflowSeries = buildCashflowSeries(
-          state.upcomingExpenses,
-          nextSummary.availableCash
-        );
-        const nextUpcomingImpactRows = buildUpcomingImpactRows(
-          state.upcomingExpenses,
-          nextSummary.availableCash
-        );
+        updateFixedExpense: (nextItem) =>
+          set((state) => {
+            const nextFixedExpenses = state.fixedExpenses.map((item) =>
+              item.id === nextItem.id ? nextItem : item
+            );
+            const nextSummary = buildCashflowSummary(
+              state.startingBalance,
+              state.upcomingExpenses,
+              state.recurringIncomes,
+              nextFixedExpenses,
+              state.semiFixedExpenses,
+              state.recentTransactions
+            );
+            const nextCashflowSeries = buildCashflowSeries(
+              state.upcomingExpenses,
+              nextSummary.availableCash
+            );
+            const nextUpcomingImpactRows = buildUpcomingImpactRows(
+              state.upcomingExpenses,
+              nextSummary.availableCash
+            );
 
-        return {
-          ...state,
-          fixedExpenses: nextFixedExpenses,
-          summary: nextSummary,
-          cashflowSeries: nextCashflowSeries,
-          upcomingImpactRows: nextUpcomingImpactRows
-        };
-      }),
-    updateRecurringIncome: (nextItem) =>
-      set((state) => {
-        const nextRecurringIncomes = state.recurringIncomes.map((item) =>
-          item.id === nextItem.id ? nextItem : item
-        );
-        const nextDerived = buildDerivedState({
-          startingBalance: state.startingBalance,
-          upcomingExpenses: state.upcomingExpenses,
-          recurringIncomes: nextRecurringIncomes,
-          fixedExpenses: state.fixedExpenses,
-          semiFixedExpenses: state.semiFixedExpenses,
-          recentTransactions: state.recentTransactions
-        });
+            return {
+              ...state,
+              fixedExpenses: nextFixedExpenses,
+              summary: nextSummary,
+              cashflowSeries: nextCashflowSeries,
+              upcomingImpactRows: nextUpcomingImpactRows
+            };
+          }),
+        updateRecurringIncome: (nextItem) =>
+          set((state) => {
+            const nextRecurringIncomes = state.recurringIncomes.map((item) =>
+              item.id === nextItem.id ? nextItem : item
+            );
+            const nextDerived = buildDerivedState({
+              startingBalance: state.startingBalance,
+              upcomingExpenses: state.upcomingExpenses,
+              recurringIncomes: nextRecurringIncomes,
+              fixedExpenses: state.fixedExpenses,
+              semiFixedExpenses: state.semiFixedExpenses,
+              recentTransactions: state.recentTransactions
+            });
 
-        return {
-          ...state,
-          recurringIncomes: nextRecurringIncomes,
-          summary: nextDerived.summary,
-          cashflowSeries: nextDerived.cashflowSeries,
-          upcomingImpactRows: nextDerived.upcomingImpactRows
-        };
-      }),
-    updateSemiFixedExpense: (nextItem) =>
-      set((state) => {
-        const nextSemiFixedExpenses = state.semiFixedExpenses.map((item) =>
-          item.id === nextItem.id ? nextItem : item
-        );
-        const nextDerived = buildDerivedState({
-          startingBalance: state.startingBalance,
-          upcomingExpenses: state.upcomingExpenses,
-          recurringIncomes: state.recurringIncomes,
-          fixedExpenses: state.fixedExpenses,
-          semiFixedExpenses: nextSemiFixedExpenses,
-          recentTransactions: state.recentTransactions
-        });
+            return {
+              ...state,
+              recurringIncomes: nextRecurringIncomes,
+              summary: nextDerived.summary,
+              cashflowSeries: nextDerived.cashflowSeries,
+              upcomingImpactRows: nextDerived.upcomingImpactRows
+            };
+          }),
+        updateSemiFixedExpense: (nextItem) =>
+          set((state) => {
+            const nextSemiFixedExpenses = state.semiFixedExpenses.map((item) =>
+              item.id === nextItem.id ? nextItem : item
+            );
+            const nextDerived = buildDerivedState({
+              startingBalance: state.startingBalance,
+              upcomingExpenses: state.upcomingExpenses,
+              recurringIncomes: state.recurringIncomes,
+              fixedExpenses: state.fixedExpenses,
+              semiFixedExpenses: nextSemiFixedExpenses,
+              recentTransactions: state.recentTransactions
+            });
 
-        return {
-          ...state,
-          semiFixedExpenses: nextSemiFixedExpenses,
-          summary: nextDerived.summary,
-          cashflowSeries: nextDerived.cashflowSeries,
-          upcomingImpactRows: nextDerived.upcomingImpactRows
-        };
-      }),
-    confirmSemiFixedExpense: (id, confirmedAt = getLocalDateString(), actualAmount) =>
-      set((state) => {
-        const nextSemiFixedExpenses = state.semiFixedExpenses.map((item) => {
-          if (item.id !== id) {
-            return item;
-          }
+            return {
+              ...state,
+              semiFixedExpenses: nextSemiFixedExpenses,
+              summary: nextDerived.summary,
+              cashflowSeries: nextDerived.cashflowSeries,
+              upcomingImpactRows: nextDerived.upcomingImpactRows
+            };
+          }),
+        setStartingBalance: (startingBalance) =>
+          set((state) => {
+            const nextDerived = buildDerivedState({
+              startingBalance,
+              upcomingExpenses: state.upcomingExpenses,
+              recurringIncomes: state.recurringIncomes,
+              fixedExpenses: state.fixedExpenses,
+              semiFixedExpenses: state.semiFixedExpenses,
+              recentTransactions: state.recentTransactions
+            });
 
-          return {
-            ...item,
-            amount: typeof actualAmount === "number" ? actualAmount : item.amount,
-            nextPaymentDate: advanceToNextDueDate(item.nextPaymentDate, item.billingCycle, confirmedAt)
-          };
-        });
-        const nextDerived = buildDerivedState({
-          startingBalance: state.startingBalance,
-          upcomingExpenses: state.upcomingExpenses,
-          recurringIncomes: state.recurringIncomes,
-          fixedExpenses: state.fixedExpenses,
-          semiFixedExpenses: nextSemiFixedExpenses,
-          recentTransactions: state.recentTransactions
-        });
+            return {
+              ...state,
+              startingBalance,
+              summary: nextDerived.summary,
+              cashflowSeries: nextDerived.cashflowSeries,
+              upcomingImpactRows: nextDerived.upcomingImpactRows
+            };
+          }),
+        confirmSemiFixedExpense: (id, confirmedAt = getLocalDateString(), actualAmount) =>
+          set((state) => {
+            const nextSemiFixedExpenses = state.semiFixedExpenses.map((item) => {
+              if (item.id !== id) {
+                return item;
+              }
 
-        return {
-          ...state,
-          semiFixedExpenses: nextSemiFixedExpenses,
-          summary: nextDerived.summary,
-          cashflowSeries: nextDerived.cashflowSeries,
-          upcomingImpactRows: nextDerived.upcomingImpactRows
-        };
-      }),
+              return {
+                ...item,
+                amount: typeof actualAmount === "number" ? actualAmount : item.amount,
+                nextPaymentDate: advanceToNextDueDate(
+                  item.nextPaymentDate,
+                  item.billingCycle,
+                  confirmedAt
+                )
+              };
+            });
+            const nextDerived = buildDerivedState({
+              startingBalance: state.startingBalance,
+              upcomingExpenses: state.upcomingExpenses,
+              recurringIncomes: state.recurringIncomes,
+              fixedExpenses: state.fixedExpenses,
+              semiFixedExpenses: nextSemiFixedExpenses,
+              recentTransactions: state.recentTransactions
+            });
+
+            return {
+              ...state,
+              semiFixedExpenses: nextSemiFixedExpenses,
+              summary: nextDerived.summary,
+              cashflowSeries: nextDerived.cashflowSeries,
+              upcomingImpactRows: nextDerived.upcomingImpactRows
+            };
+          })
       };
     },
     {

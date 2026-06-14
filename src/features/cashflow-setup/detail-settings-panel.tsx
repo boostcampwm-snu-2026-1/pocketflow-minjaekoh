@@ -189,10 +189,11 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
         : current
     );
     setNotice(`${label} ${formatWon(price)}를 금액에 반영했습니다.`);
+    setLookupOpen(false);
   };
 
-  const handleSearch = async () => {
-    const trimmed = searchQuery.trim();
+  const executeSearch = async (query: string) => {
+    const trimmed = query.trim();
     if (!trimmed) {
       setSearchError("검색어를 입력해주세요.");
       return;
@@ -230,6 +231,17 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
     } finally {
       setSearchLoading(false);
     }
+  };
+
+  const handleLookupClick = () => {
+    const nextQuery = draft?.name ?? "";
+    setLookupOpen(true);
+    setSearchQuery(nextQuery);
+    void executeSearch(nextQuery);
+  };
+
+  const handleSearch = () => {
+    void executeSearch(searchQuery);
   };
 
   return (
@@ -353,7 +365,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
           </button>
           <button
             type="button"
-            onClick={() => setLookupOpen(true)}
+            onClick={handleLookupClick}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 text-sm font-medium text-primary transition-colors hover:bg-primary/15 sm:w-[140px]"
           >
             <Search className="h-4 w-4" />

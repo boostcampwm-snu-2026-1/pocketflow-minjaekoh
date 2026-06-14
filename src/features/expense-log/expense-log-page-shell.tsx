@@ -11,7 +11,7 @@ import {
 
 type PurchaseSimulationContext = {
   itemName: string;
-  price: number;
+  price: number | "";
 };
 
 function getToday() {
@@ -35,8 +35,8 @@ function formatRecentTransaction(transaction: RecentTransactionItem) {
 
 export function ExpenseLogPageShell() {
   const [simulationContext, setSimulationContext] = useState<PurchaseSimulationContext>({
-    itemName: "무선 이어폰",
-    price: 129000
+    itemName: "",
+    price: ""
   });
 
   const transactions = useCashflowStore((state) => state.recentTransactions);
