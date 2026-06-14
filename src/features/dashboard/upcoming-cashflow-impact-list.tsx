@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowDownRight, CalendarDays } from "lucide-react";
 import {
-  buildForecastCashflowSeries,
+  buildRollingCashflowSeries,
   useCashflowStore,
   type ForecastCashflowPoint
 } from "@/store/cashflow-store";
@@ -21,7 +21,7 @@ export function UpcomingCashflowImpactList() {
   const fixedExpenses = useCashflowStore((state) => state.fixedExpenses);
   const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
 
-  const forecast = buildForecastCashflowSeries({
+  const forecast = buildRollingCashflowSeries({
     startingBalance: currentBalance,
     recurringIncomes,
     fixedExpenses,

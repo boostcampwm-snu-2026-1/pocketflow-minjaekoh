@@ -7,8 +7,6 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
-  ToggleLeft,
-  ToggleRight,
   TrendingUp,
   X
 } from "lucide-react";
@@ -26,17 +24,15 @@ type DraftState = {
   billingCycle: BillingCycle;
   nextPaymentDate: string;
   note: string;
-  smartPricing: boolean;
 };
 
 function createBlankDraft(): DraftState {
   return {
     name: "",
     amount: "",
-    billingCycle: "주1회",
+    billingCycle: billingCycleOptions[0],
     nextPaymentDate: "2026-06-14",
-    note: "",
-    smartPricing: true
+    note: ""
   };
 }
 
@@ -92,8 +88,7 @@ function createDraft(item: SemiFixedExpenseItem): DraftState {
     amount: String(item.amount),
     billingCycle: item.billingCycle,
     nextPaymentDate: item.nextPaymentDate,
-    note: item.note,
-    smartPricing: item.smartPricing
+    note: item.note
   };
 }
 
@@ -149,7 +144,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
 
     return [
       { label: "최저가", value: formatCompactWon(searchResult.summary.minPrice) },
-      { label: "중앙값", value: formatCompactWon(searchResult.summary.medianPrice) },
+      { label: "중간가", value: formatCompactWon(searchResult.summary.medianPrice) },
       { label: "평균가", value: formatCompactWon(searchResult.summary.averagePrice) },
       { label: "추천가", value: formatCompactWon(searchResult.summary.recommendedPrice) }
     ];
@@ -162,22 +157,25 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
 
     const nextAmount = Number(draft.amount);
     if (!draft.name.trim() || !Number.isFinite(nextAmount) || nextAmount <= 0) {
-      setNotice("품목명과 금액을 확인해주세요.");
+      setNotice("항목명과 금액을 확인해주세요.");
       return;
     }
 
     onSave({
-      id: isCreatingNew || !selectedItem ? `semi-fixed-${Date.now()}-${Math.random().toString(16).slice(2)}` : selectedItem.id,
+      id:
+        isCreatingNew || !selectedItem
+          ? `semi-fixed-${Date.now()}-${Math.random().toString(16).slice(2)}`
+          : selectedItem.id,
       name: draft.name.trim(),
       amount: Math.round(nextAmount),
       billingCycle: draft.billingCycle,
       nextPaymentDate: draft.nextPaymentDate,
       note: draft.note.trim() || "메모 없음",
-      smartPricing: draft.smartPricing,
-      apiLinked: draft.smartPricing ? true : (selectedItem?.apiLinked ?? true),
-      status: draft.smartPricing ? "api-ready" : (selectedItem?.status ?? "watch")
+      apiLinked: selectedItem?.apiLinked ?? true,
+      smartPricing: selectedItem?.smartPricing ?? false,
+      status: selectedItem?.status ?? "watch"
     });
-    setNotice("수정 내용을 반영했습니다.");
+    setNotice("수정 내용이 반영되었습니다.");
     setCreatingNew(false);
   };
 
@@ -227,7 +225,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
         }))
       });
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : "가격 조회 중 알 수 없는 오류가 발생했습니다.");
+      setSearchError(error instanceof Error ? error.message : "가격 조회 중 오류가 발생했습니다.");
       setSearchResult(null);
     } finally {
       setSearchLoading(false);
@@ -236,37 +234,29 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
 
   return (
     <>
-      <aside className="space-y-5 rounded-xl border bg-background p-5">
+      <aside className="h-fit self-start space-y-5 rounded-xl border bg-background p-5">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <BadgeCheck className="h-4 w-4 text-primary" />
           개별 생필품 추가
         </div>
 
         <div className="rounded-lg border border-border/70 bg-card px-4 py-4">
-          <p className="text-xs text-muted-foreground">{isCreatingNew ? "새 품목" : "선택한 품목"}</p>
+          <p className="text-xs text-muted-foreground">{isCreatingNew ? "새 항목" : "선택된 항목"}</p>
           <div className="mt-3 flex items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">{draft?.name || "새 품목을 입력하세요"}</span>
-            <span
-              className={[
-                "rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                draft?.smartPricing
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                  : "border-border bg-secondary text-muted-foreground"
-              ].join(" ")}
-            >
-              {draft?.smartPricing ? "자동 가격 추적" : "수동 관리"}
-            </span>
+            <span className="text-sm font-semibold text-foreground">{draft?.name || "새 항목을 입력하세요"}</span>
           </div>
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            {draft?.note || "품목 메모를 적어두면 관리가 쉬워집니다."}
+            {draft?.note || "메모를 입력하면 항목을 더 쉽게 구분할 수 있습니다."}
           </p>
         </div>
 
         <div className="space-y-4">
-          <Field label="품목명">
+          <Field label="항목명">
             <input
               value={draft?.name ?? ""}
-              onChange={(event) => setDraft((current) => (current ? { ...current, name: event.target.value } : current))}
+              onChange={(event) =>
+                setDraft((current) => (current ? { ...current, name: event.target.value } : current))
+              }
               className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary"
             />
           </Field>
@@ -292,14 +282,16 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
           <Field label="메모">
             <input
               value={draft?.note ?? ""}
-              onChange={(event) => setDraft((current) => (current ? { ...current, note: event.target.value } : current))}
+              onChange={(event) =>
+                setDraft((current) => (current ? { ...current, note: event.target.value } : current))
+              }
               className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary"
             />
           </Field>
 
           <Field label="주기">
             <select
-              value={draft?.billingCycle ?? "주1회"}
+              value={draft?.billingCycle ?? billingCycleOptions[0]}
               onChange={(event) =>
                 setDraft((current) =>
                   current
@@ -339,34 +331,11 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
           </Field>
         </div>
 
-          <button
-            type="button"
-            onClick={() =>
-                setDraft((current) =>
-                  current
-                ? {
-                    ...current,
-                    smartPricing: !current.smartPricing
-                  }
-                : current
-            )
-          }
-          className="flex w-full items-center justify-between rounded-lg border border-border/70 bg-card px-4 py-3 text-left"
-        >
-          <div>
-            <p className="text-sm font-medium text-foreground">자동 가격 추적</p>
-            <p className="mt-1 text-xs text-muted-foreground">네이버 쇼핑 가격 조회를 열어둘지 정합니다.</p>
-          </div>
-          {draft?.smartPricing ? (
-            <ToggleRight className="h-8 w-8 text-emerald-400" />
-          ) : (
-            <ToggleLeft className="h-8 w-8 text-muted-foreground" />
-          )}
-        </button>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SummaryRow label="다음 결제" value={`${formatDate(draft?.nextPaymentDate ?? "2026-06-14")} · ${draft?.billingCycle ?? "주1회"}`} />
-          <SummaryRow label="연결 상태" value={draft?.smartPricing ? "API 자동" : "수동 관리"} />
+        <div className="grid gap-4 sm:grid-cols-1">
+          <SummaryRow
+            label="다음 결제"
+            value={`${formatDate(draft?.nextPaymentDate ?? "2026-06-14")} · ${draft?.billingCycle ?? billingCycleOptions[0]}`}
+          />
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -380,7 +349,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
             className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/40 sm:w-[140px]"
           >
             <Plus className="h-4 w-4" />
-            새 품목
+            새 항목
           </button>
           <button
             type="button"
@@ -396,11 +365,15 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
             className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <SlidersHorizontal className="h-4 w-4" />
-            {isCreatingNew ? "추가" : "변경사항 저장"}
+            {isCreatingNew ? "추가" : "저장"}
           </button>
         </div>
 
-        {notice ? <div className="rounded-lg border border-border/70 bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
+        {notice ? (
+          <div className="rounded-lg border border-border/70 bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+            {notice}
+          </div>
+        ) : null}
       </aside>
 
       {isLookupOpen ? (
@@ -409,7 +382,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
               <div>
                 <p className="text-sm text-muted-foreground">시세 조회</p>
-                <h3 className="mt-1 text-lg font-semibold text-foreground">{draft?.name || "새 품목"}</h3>
+                <h3 className="mt-1 text-lg font-semibold text-foreground">{draft?.name || "새 항목"}</h3>
               </div>
               <button
                 type="button"
@@ -424,7 +397,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
             <div className="max-h-[75vh] overflow-y-auto px-5 py-5">
               <div className="space-y-4">
                 <p className="text-sm leading-6 text-muted-foreground">
-                  네이버 쇼핑 결과를 보고 평균가나 추천가를 현재 품목 금액에 바로 반영할 수 있습니다.
+                  검색어를 넣고 조회하면 시세 카드가 표시됩니다. 평균가와 추천가를 현재 금액에 바로 반영할 수 있습니다.
                 </p>
 
                 <div className="flex flex-col gap-3 md:flex-row">
@@ -441,7 +414,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {searchLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    검색
+                    조회
                   </button>
                 </div>
 
@@ -481,9 +454,9 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
                     <div className="rounded-lg border border-border/70 bg-card px-4 py-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium text-foreground">검색 결과</p>
+                          <p className="text-sm font-medium text-foreground">조회 결과</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {searchResult.query} · {searchResult.summary.pricedItemCount}개 가격 포함
+                            {searchResult.query} · {searchResult.summary.pricedItemCount}개 항목
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground">{formatShortDate(searchResult.fetchedAt)}</p>
@@ -534,7 +507,7 @@ export function DetailSettingsPanel({ selectedItem, onSave }: DetailSettingsPane
 
                       <div className="mt-4 flex items-center gap-2 rounded-lg border border-border/70 bg-secondary/40 px-4 py-3 text-xs text-muted-foreground">
                         <TrendingUp className="h-4 w-4 text-primary" />
-                        <span>평균가와 추천가는 정제된 결과만 기준으로 계산합니다.</span>
+                        <span>조회한 시세는 평균가와 추천가 계산에만 사용됩니다.</span>
                       </div>
                     </div>
                   </div>

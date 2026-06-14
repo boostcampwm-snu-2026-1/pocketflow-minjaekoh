@@ -4,39 +4,10 @@ import { useMemo, useState } from "react";
 import { AiPurchaseSimulatorPanel } from "./ai-purchase-simulator-panel";
 import { RecentExpenseList } from "./recent-expense-list";
 import { ScheduledExpenseReviewPanel } from "./scheduled-expense-review-panel";
-import { useCashflowStore } from "@/store/cashflow-store";
-
-type TransactionItem = {
-  date: string;
-  name: string;
-  category: string;
-  amount: number;
-  type: "expense" | "income";
-};
-
-const initialTransactions: TransactionItem[] = [
-  {
-    date: "2026-06-06",
-    name: "치킨 배달",
-    category: "식비",
-    amount: 12000,
-    type: "expense"
-  },
-  {
-    date: "2026-06-06",
-    name: "아르바이트 입금",
-    category: "용돈",
-    amount: 48000,
-    type: "income"
-  },
-  {
-    date: "2026-06-05",
-    name: "교통비",
-    category: "교통비",
-    amount: 3200,
-    type: "expense"
-  }
-];
+import {
+  type RecentTransactionItem,
+  useCashflowStore
+} from "@/store/cashflow-store";
 
 type PurchaseSimulationContext = {
   itemName: string;
@@ -51,42 +22,45 @@ function getToday() {
   return `${year}-${month}-${day}`;
 }
 
+function createRecentTransactionId(prefix: string) {
+  return `${prefix}-${globalThis.crypto.randomUUID()}`;
+}
+
+function formatRecentTransaction(transaction: RecentTransactionItem) {
+  return {
+    ...transaction,
+    date: transaction.date.slice(5).replace("-", "/")
+  };
+}
+
 export function ExpenseLogPageShell() {
-  const [transactions, setTransactions] = useState<TransactionItem[]>(initialTransactions);
   const [simulationContext, setSimulationContext] = useState<PurchaseSimulationContext>({
     itemName: "무선 이어폰",
     price: 129000
   });
 
-  const confirmSemiFixedExpense = useCashflowStore(
-    (state) => state.confirmSemiFixedExpense
-  );
+  const transactions = useCashflowStore((state) => state.recentTransactions);
+  const confirmSemiFixedExpense = useCashflowStore((state) => state.confirmSemiFixedExpense);
   const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
+  const addRecentTransaction = useCashflowStore((state) => state.addRecentTransaction);
+  const removeRecentTransaction = useCashflowStore((state) => state.removeRecentTransaction);
 
   const recentTransactions = useMemo(
-    () =>
-      [...transactions]
-        .sort((left, right) => right.date.localeCompare(left.date))
-        .map((transaction) => ({
-          ...transaction,
-          date: transaction.date.slice(5).replace("-", "/")
-        })),
+    () => [...transactions].sort((left, right) => right.date.localeCompare(left.date)).map(formatRecentTransaction),
     [transactions]
   );
 
   function handleScheduledConfirm(item: { id: string; name: string; amount: number }) {
     const today = getToday();
     confirmSemiFixedExpense(item.id, today, item.amount);
-    setTransactions((current) => [
-      {
-        date: today,
-        name: item.name,
-        category: "준고정비",
-        amount: item.amount,
-        type: "expense"
-      },
-      ...current
-    ]);
+    addRecentTransaction({
+      id: createRecentTransactionId(`scheduled-${item.id}-${today}`),
+      date: today,
+      name: item.name,
+      category: "중고정비",
+      amount: item.amount,
+      type: "expense"
+    });
     setSimulationContext({ itemName: item.name, price: item.amount });
   }
 
@@ -96,29 +70,28 @@ export function ExpenseLogPageShell() {
     reason: string;
     verdict: "buy" | "hold" | "reject";
   }) {
+    const today = getToday();
     const matchedItem = semiFixedExpenses.find(
-      (item) => item.name === purchase.itemName && item.nextPaymentDate <= getToday()
+      (item) => item.name === purchase.itemName && item.nextPaymentDate <= today
     );
 
     if (matchedItem) {
-      confirmSemiFixedExpense(matchedItem.id, getToday(), purchase.price);
+      confirmSemiFixedExpense(matchedItem.id, today, purchase.price);
     }
 
-    setTransactions((current) => [
-      {
-        date: getToday(),
-        name: purchase.itemName,
-        category: "변동비",
-        amount: purchase.price,
-        type: "expense"
-      },
-      ...current
-    ]);
+    addRecentTransaction({
+      id: createRecentTransactionId(`purchase-${purchase.itemName}-${today}-${purchase.price}`),
+      date: today,
+      name: purchase.itemName,
+      category: "변동비",
+      amount: purchase.price,
+      type: "expense"
+    });
     setSimulationContext({ itemName: purchase.itemName, price: purchase.price });
   }
 
-  function handleDeleteTransaction(index: number) {
-    setTransactions((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  function handleDeleteTransaction(id: string) {
+    removeRecentTransaction(id);
   }
 
   return (
@@ -127,8 +100,7 @@ export function ExpenseLogPageShell() {
         <p className="text-sm text-muted-foreground">Actual transactions</p>
         <h1 className="text-2xl font-bold text-foreground">가계부 기록</h1>
         <p className="mt-2 max-w-3xl whitespace-nowrap text-sm leading-6 text-muted-foreground">
-          정기지출은 예정된 지출 확인 항목에서 처리하고, 그 외 비정기 지출은 소비 판정실의 판정을 거쳐
-          사용자의 최종 선택으로 반영됩니다.
+          정기 지출과 예정 지출을 함께 확인하고, 그 외 비정기 지출도 실제 생활에 맞게 반영하는 화면입니다.
         </p>
       </div>
 
