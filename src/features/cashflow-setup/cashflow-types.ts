@@ -1,4 +1,4 @@
-export type BillingCycle = "매일" | "주1회" | "2주1회" | "주2~3회" | "비정기" | "매월";
+export type BillingCycle = "매일" | "주2~3회" | "주 1회" | "2주 1회" | "매월" | "두달" | "비정기";
 
 export type ExpenseStatus = "active" | "watch" | "api-ready";
 
@@ -14,25 +14,33 @@ export type SemiFixedExpenseItem = {
   note: string;
 };
 
-export const billingCycleOptions: BillingCycle[] = ["매일", "주1회", "2주1회", "주2~3회", "비정기", "매월"];
+export const billingCycleOptions: BillingCycle[] = [
+  "매일",
+  "주2~3회",
+  "주 1회",
+  "2주 1회",
+  "매월",
+  "두달",
+  "비정기"
+];
 
 export const initialSemiFixedExpenses: SemiFixedExpenseItem[] = [
   {
     id: "chicken-breast",
     name: "닭가슴살 2kg",
     amount: 32000,
-    billingCycle: "주1회",
+    billingCycle: "주 1회",
     nextPaymentDate: "2026-06-14",
     apiLinked: true,
     smartPricing: true,
     status: "api-ready",
-    note: "단백질 식재료"
+    note: "단백질 고정 구입"
   },
   {
     id: "eggs",
     name: "계란 30구",
     amount: 8900,
-    billingCycle: "주1회",
+    billingCycle: "주 1회",
     nextPaymentDate: "2026-06-14",
     apiLinked: true,
     smartPricing: true,
@@ -43,7 +51,7 @@ export const initialSemiFixedExpenses: SemiFixedExpenseItem[] = [
     id: "milk",
     name: "우유 2L",
     amount: 6200,
-    billingCycle: "주1회",
+    billingCycle: "주 1회",
     nextPaymentDate: "2026-06-14",
     apiLinked: false,
     smartPricing: false,
@@ -54,7 +62,7 @@ export const initialSemiFixedExpenses: SemiFixedExpenseItem[] = [
     id: "detergent",
     name: "세제",
     amount: 21000,
-    billingCycle: "2주1회",
+    billingCycle: "2주 1회",
     nextPaymentDate: "2026-06-17",
     apiLinked: false,
     smartPricing: false,
@@ -63,25 +71,25 @@ export const initialSemiFixedExpenses: SemiFixedExpenseItem[] = [
   },
   {
     id: "delivery",
-    name: "배달음식",
+    name: "배달식",
     amount: 96000,
     billingCycle: "비정기",
     nextPaymentDate: "2026-06-15",
     apiLinked: false,
     smartPricing: false,
     status: "active",
-    note: "변동성이 큰 식비 예산"
+    note: "변동성 높은 식비"
   },
   {
     id: "cleaning-paper",
     name: "청소용품",
     amount: 17000,
-    billingCycle: "2주1회",
+    billingCycle: "2주 1회",
     nextPaymentDate: "2026-06-17",
     apiLinked: false,
     smartPricing: false,
     status: "watch",
-    note: "화장실/주방 청소"
+    note: "욕실/주방 청소"
   },
   {
     id: "coffee",
@@ -92,6 +100,6 @@ export const initialSemiFixedExpenses: SemiFixedExpenseItem[] = [
     apiLinked: true,
     smartPricing: true,
     status: "api-ready",
-    note: "작지만 잦은 소비"
+    note: "작은 지출이지만 자주 발생"
   }
 ];

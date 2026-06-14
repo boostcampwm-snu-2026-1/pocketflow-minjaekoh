@@ -1,6 +1,7 @@
 import { CircleDollarSign, ReceiptText, Trash2 } from "lucide-react";
 
 type RecentExpense = {
+  id: string;
   date: string;
   name: string;
   category: string;
@@ -10,25 +11,28 @@ type RecentExpense = {
 
 type RecentExpenseListProps = {
   expenses?: RecentExpense[];
-  onDelete?: (index: number) => void;
+  onDelete?: (id: string) => void;
 };
 
 const defaultExpenses: RecentExpense[] = [
   {
+    id: "transport-2026-06-06",
     date: "06/06",
-    name: "치킨 배달",
-    category: "식비",
+    name: "출근 교통비",
+    category: "교통비",
     amount: 12000,
     type: "expense"
   },
   {
+    id: "parttime-2026-06-06",
     date: "06/06",
-    name: "아르바이트 입금",
-    category: "용돈",
+    name: "아르바이트 급여",
+    category: "수입",
     amount: 48000,
     type: "income"
   },
   {
+    id: "transport-2026-06-05",
     date: "06/05",
     name: "교통비",
     category: "교통비",
@@ -36,13 +40,15 @@ const defaultExpenses: RecentExpense[] = [
     type: "expense"
   },
   {
+    id: "allowance-2026-06-05",
     date: "06/05",
-    name: "상여",
+    name: "용돈",
     category: "기타수입",
     amount: 15600,
     type: "income"
   },
   {
+    id: "america-2026-06-04",
     date: "06/04",
     name: "아메리카노",
     category: "식비",
@@ -61,11 +67,11 @@ function getCategoryTone(category: string, type: RecentExpense["type"]) {
   }
 
   switch (category) {
-    case "식비":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-500";
     case "교통비":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-500";
+    case "수입":
       return "border-sky-500/30 bg-sky-500/10 text-sky-500";
-    case "고정비":
+    case "변동비":
       return "border-amber-500/30 bg-amber-500/10 text-amber-500";
     default:
       return "border-border bg-secondary text-muted-foreground";
@@ -89,13 +95,13 @@ export function RecentExpenseList({
             최근 수입 / 지출 내역
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            수입과 지출의 실제 발생 내역을 함께 보여줍니다.
+            수입과 지출의 실제 발생 내역을 한눈에 보여줍니다.
           </p>
         </div>
 
         <div className="hidden items-center gap-2 rounded-full border border-border/70 bg-secondary px-3 py-1 text-xs text-muted-foreground md:flex">
           <CircleDollarSign className="h-3.5 w-3.5" />
-          <span>순변동 {formatWon(total)}</span>
+          <span>순합계 {formatWon(total)}</span>
         </div>
       </div>
 
@@ -108,9 +114,9 @@ export function RecentExpenseList({
         </div>
 
         <div className="max-h-[520px] overflow-y-auto divide-y divide-border">
-          {expenses.map((expense, index) => (
+          {expenses.map((expense) => (
             <article
-              key={`${expense.date}-${expense.name}-${index}`}
+              key={expense.id}
               className="group grid grid-cols-[72px_minmax(0,1.5fr)_auto_auto] gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
             >
               <div className="text-sm font-medium text-foreground">{expense.date}</div>
@@ -118,9 +124,7 @@ export function RecentExpenseList({
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <ReceiptText className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate font-medium text-foreground">
-                    {expense.name}
-                  </span>
+                  <span className="truncate font-medium text-foreground">{expense.name}</span>
                   <span
                     className={[
                       "rounded-full border px-2 py-0.5 text-[11px] font-medium",
@@ -131,7 +135,9 @@ export function RecentExpenseList({
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {expense.type === "income" ? "수입이 들어온 기록입니다." : "지출이 기록된 항목입니다."}
+                  {expense.type === "income"
+                    ? "수입으로 기록된 항목입니다."
+                    : "지출로 기록된 항목입니다."}
                 </p>
               </div>
 
@@ -148,7 +154,7 @@ export function RecentExpenseList({
                 {onDelete ? (
                   <button
                     type="button"
-                    onClick={() => onDelete(index)}
+                    onClick={() => onDelete(expense.id)}
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground opacity-0 transition-all hover:border-destructive/40 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
                     aria-label={`${expense.name} 삭제`}
                   >

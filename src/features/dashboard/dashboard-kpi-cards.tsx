@@ -1,11 +1,7 @@
 "use client";
 
-import { CalendarRange, ArrowDownRight, ArrowUpRight, Wallet } from "lucide-react";
-import {
-  buildForecastCashflowSeries,
-  useCashflowStore,
-  type ForecastCashflowPoint
-} from "@/store/cashflow-store";
+import { ArrowDownRight, ArrowUpRight, CalendarRange, Wallet } from "lucide-react";
+import { buildRollingCashflowMetrics, useCashflowStore } from "@/store/cashflow-store";
 
 type KpiCard = {
   title: string;
@@ -19,57 +15,52 @@ function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
-function sumSeries(points: ForecastCashflowPoint[], key: "incoming" | "outgoing") {
-  return points.reduce((sum, point) => sum + point[key], 0);
-}
-
 export function DashboardKpiCards() {
   const currentBalance = useCashflowStore((state) => state.summary.currentBalance);
   const recurringIncomes = useCashflowStore((state) => state.recurringIncomes);
   const fixedExpenses = useCashflowStore((state) => state.fixedExpenses);
   const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
 
-  const forecast = buildForecastCashflowSeries({
+  const rolling = buildRollingCashflowMetrics({
     startingBalance: currentBalance,
     recurringIncomes,
     fixedExpenses,
     semiFixedExpenses,
     horizonDays: 30
   });
-
-  const totalIncoming = sumSeries(forecast, "incoming");
-  const totalOutgoing = sumSeries(forecast, "outgoing");
-  const finalBalance = forecast.at(-1)?.cash ?? currentBalance;
+  const minimumBalanceDate = rolling.forecastSeries[rolling.minimumBalanceDay - 1]?.date;
 
   const kpiCards: KpiCard[] = [
     {
       title: "현재 잔액",
       value: formatWon(currentBalance),
-      description: "지금 당장 보이는 잔액입니다.",
+      description: "지금 기준으로 반영된 실제 잔액입니다.",
       icon: Wallet,
       tone: "default"
     },
     {
-      title: "30일 유입",
-      value: formatWon(totalIncoming),
-      description: "앞으로 30일 동안 들어올 돈입니다.",
+      title: "30일 예상 수입",
+      value: formatWon(rolling.totalIncoming),
+      description: "오늘부터 30일 동안 들어올 것으로 잡힌 수입입니다.",
       icon: ArrowUpRight,
       tone: "default"
     },
     {
-      title: "30일 유출",
-      value: formatWon(totalOutgoing),
-      description: "앞으로 30일 동안 나갈 돈입니다.",
+      title: "30일 예상 지출",
+      value: formatWon(rolling.plannedOutgoing),
+      description: "정기지출과 개별 생필품 기준으로 앞으로 30일 동안 나갈 돈입니다.",
       icon: ArrowDownRight,
       tone: "default"
     },
     {
-      title: "월말 잔액",
-      value: formatWon(finalBalance),
+      title: "30일 이내 최저 잔액",
+      value: formatWon(rolling.minimumBalanceAfter30Days),
       description:
-        finalBalance < 0 ? "적자입니다. 지출을 바로 줄여야 합니다." : "현재 흐름이면 잔액이 남습니다.",
+        rolling.minimumBalanceAfter30Days < 0
+          ? `30일 안에 마이너스 구간이 생깁니다${minimumBalanceDate ? ` · ${minimumBalanceDate.slice(5).replace("-", "/")}` : ""}.`
+          : `30일 동안 가장 낮아지는 시점의 잔액입니다${minimumBalanceDate ? ` · ${minimumBalanceDate.slice(5).replace("-", "/")}` : ""}.`,
       icon: CalendarRange,
-      tone: finalBalance < 0 ? "highlight" : "default"
+      tone: rolling.minimumBalanceAfter30Days < 0 ? "highlight" : "default"
     }
   ];
 
@@ -79,15 +70,11 @@ export function DashboardKpiCards() {
         <div>
           <p className="text-sm text-muted-foreground">Pocketflow</p>
           <h1 id="dashboard-kpi-heading" className="text-2xl font-semibold tracking-tight md:text-3xl">
-            오늘의 현금 흐름
+            오늘 기준 30일 현금흐름
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            그래프와 같은 30일 예측 시리즈 기준으로 현재 잔액, 유입, 유출, 월말 잔액만
-            보여줍니다.
+            월말이 아니라 오늘부터 30일 롤링 타임라인으로 잔액, 수입, 지출, 최저점을 봅니다.
           </p>
-        </div>
-        <div className="rounded-full border border-border/80 bg-secondary px-3 py-1 text-xs text-muted-foreground">
-          Issue #15
         </div>
       </div>
 
