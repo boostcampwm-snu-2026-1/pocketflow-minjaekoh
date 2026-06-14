@@ -139,14 +139,16 @@ export function ScheduledExpenseReviewPanel({
   const confirmSemiFixedExpense = useCashflowStore(
     (state) => state.confirmSemiFixedExpense
   );
+  const [dismissedKeys, setDismissedKeys] = useState<string[]>([]);
 
   const dueItems = useMemo(() => {
     const today = getToday();
 
     return [...semiFixedExpenses]
+      .filter((item) => !dismissedKeys.includes(`${item.id}:${item.nextPaymentDate}`))
       .filter((item) => item.nextPaymentDate <= today)
       .sort((left, right) => left.nextPaymentDate.localeCompare(right.nextPaymentDate));
-  }, [semiFixedExpenses]);
+  }, [dismissedKeys, semiFixedExpenses]);
 
   const totalAmount = dueItems.reduce((sum, item) => sum + item.amount, 0);
 
@@ -190,6 +192,10 @@ export function ScheduledExpenseReviewPanel({
                     ...nextItem,
                     amount
                   };
+                  setDismissedKeys((current) => [
+                    ...current,
+                    `${nextItem.id}:${nextItem.nextPaymentDate}`
+                  ]);
                   confirmSemiFixedExpense(nextItem.id, getToday(), amount);
                   onConfirm(confirmedItem);
                 }}
