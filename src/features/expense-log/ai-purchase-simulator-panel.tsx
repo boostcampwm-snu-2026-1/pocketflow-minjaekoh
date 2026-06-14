@@ -33,7 +33,7 @@ type NoSpendRecord = {
 
 type AiPurchaseSimulatorPanelProps = {
   currentItemName?: string;
-  currentPrice?: number;
+  currentPrice?: number | "";
   onBuy?: (purchase: {
     itemName: string;
     price: number;
@@ -115,8 +115,8 @@ function getWeekStart(date = new Date()) {
 }
 
 export function AiPurchaseSimulatorPanel({
-  currentItemName = "무선 이어폰",
-  currentPrice = 129000,
+  currentItemName = "",
+  currentPrice = "",
   onBuy
 }: AiPurchaseSimulatorPanelProps) {
   const summary = useCashflowStore((state) => state.summary);
@@ -125,7 +125,7 @@ export function AiPurchaseSimulatorPanel({
   const semiFixedExpenses = useCashflowStore((state) => state.semiFixedExpenses);
 
   const [itemName, setItemName] = useState(currentItemName);
-  const [price, setPrice] = useState(String(currentPrice));
+  const [price, setPrice] = useState(currentPrice === "" ? "" : String(currentPrice));
   const [reason, setReason] = useState("");
   const [persona] = useState<Persona>("spicy");
   const [loading, setLoading] = useState(false);
@@ -139,7 +139,7 @@ export function AiPurchaseSimulatorPanel({
   }, [currentItemName]);
 
   useEffect(() => {
-    setPrice(String(currentPrice));
+    setPrice(currentPrice === "" ? "" : String(currentPrice));
   }, [currentPrice]);
 
   useEffect(() => {
